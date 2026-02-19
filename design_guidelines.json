@@ -1,0 +1,192 @@
+{
+  "design_system": {
+    "identity": {
+      "name": "Hotspot Admin Pro",
+      "archetype": "Swiss & High-Contrast (Modified)",
+      "vibe": "Precision, Connectivity, Clarity",
+      "principles": [
+        "Fusion over Imitation: Mix Swiss precision with Digital Utility.",
+        "Content is King: Data density without clutter.",
+        "Contrast: High contrast for readability in sunlight (mobile use).",
+        "Negative Space: Group related data with whitespace, not lines."
+      ]
+    },
+    "typography": {
+      "fonts": {
+        "headings": {
+          "family": "Manrope",
+          "weights": ["600", "800"],
+          "usage": "Page titles, Card headers, Key metrics"
+        },
+        "body": {
+          "family": "Inter",
+          "weights": ["400", "500"],
+          "usage": "General text, labels, form inputs"
+        },
+        "mono": {
+          "family": "JetBrains Mono",
+          "weights": ["400", "500"],
+          "usage": "Voucher codes, Pricing, Dates, IDs"
+        }
+      },
+      "scale": {
+        "h1": "text-4xl font-extrabold tracking-tight lg:text-5xl",
+        "h2": "text-3xl font-bold tracking-tight",
+        "h3": "text-2xl font-semibold tracking-tight",
+        "p": "leading-7 [&:not(:first-child)]:mt-6",
+        "small": "text-sm font-medium leading-none"
+      }
+    },
+    "colors": {
+      "palette": {
+        "primary": {
+          "name": "Electric Violet",
+          "hex": "#7c3aed",
+          "tailwind": "violet-600",
+          "usage": "Primary actions, Active states, Brand identity"
+        },
+        "secondary": {
+          "name": "Signal Orange",
+          "hex": "#f97316",
+          "tailwind": "orange-500",
+          "usage": "Alerts, 'Pay Now' highlights, Critical status"
+        },
+        "background": {
+          "main": "#f8fafc",
+          "card": "#ffffff",
+          "sidebar": "#0f172a"
+        },
+        "text": {
+          "primary": "#0f172a",
+          "secondary": "#64748b",
+          "inverse": "#ffffff"
+        },
+        "border": {
+          "default": "#e2e8f0",
+          "active": "#7c3aed"
+        }
+      },
+      "rules": [
+        "NO TEAL/GREEN (#1B93A4) allowed.",
+        "Sidebar must be dark (#0f172a) for contrast against light content area.",
+        "Use 'Signal Orange' sparingly for payment reminders."
+      ]
+    },
+    "layout": {
+      "grid_system": {
+        "dashboard": "Bento Grid Mode B (High Density)",
+        "columns": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
+        "gap": "gap-4 or gap-6"
+      },
+      "spacing": {
+        "container_padding": "p-6 or p-8",
+        "section_gap": "gap-8"
+      },
+      "containers": {
+        "card_style": "bg-white border border-slate-200 shadow-sm rounded-lg",
+        "sidebar_style": "fixed left-0 top-0 h-full w-64 bg-slate-900 text-white z-50"
+      }
+    },
+    "components": {
+      "buttons": {
+        "primary": "bg-violet-600 hover:bg-violet-700 text-white shadow-sm rounded-md font-medium transition-all",
+        "secondary": "bg-white text-slate-900 border border-slate-200 hover:bg-slate-50 shadow-sm rounded-md font-medium",
+        "destructive": "bg-red-500 hover:bg-red-600 text-white rounded-md"
+      },
+      "cards": {
+        "default": "bg-white rounded-lg border border-slate-200 shadow-sm p-6",
+        "metric": "flex flex-col justify-between space-y-2"
+      },
+      "inputs": {
+        "default": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      },
+      "tables": {
+        "style": "w-full caption-bottom text-sm",
+        "header": "[&_tr]:border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+        "row": "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+      }
+    },
+    "visual_enhancers": {
+      "glassmorphism": "backdrop-blur-md bg-white/70 border-white/20 (Use for sticky headers only)",
+      "shadows": "shadow-sm for cards, shadow-lg for dropdowns/modals",
+      "borders": "1px solid slate-200 (Light mode)",
+      "radius": "rounded-lg (0.5rem)"
+    },
+    "motion": {
+      "transitions": "transition-all duration-200 ease-in-out",
+      "hover_effects": "transform hover:-translate-y-0.5 (subtle lift)",
+      "loading": "animate-pulse bg-slate-200"
+    },
+    "accessibility": {
+      "contrast": "Ensure 4.5:1 contrast ratio for text.",
+      "focus_states": "Visible ring-2 ring-violet-600 offset-2",
+      "aria_labels": "Required for all icon-only buttons"
+    }
+  },
+  "assets": {
+    "images": {
+      "login_background": {
+        "url": "https://images.unsplash.com/photo-1765046255517-412341954c4c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMHRlY2hub2xvZ3klMjBuZXR3b3JrJTIwY29ubmVjdGlvbiUyMHdoaXRlJTIwYmFja2dyb3VuZCUyMG1pbmltYWxpc3R8ZW58MHx8fHwxNzcxNDgzMjA3fDA&ixlib=rb-4.1.0&q=85",
+        "alt": "Abstract white network connection background",
+        "usage": "Full screen background for Login page with overlay"
+      },
+      "avatars": [
+        "https://images.unsplash.com/photo-1665118440493-c25389dd1166?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwxfHxkaXZlcnNlJTIwcHJvZmVzc2lvbmFsJTIwdXNlciUyMGF2YXRhcnMlMjBwb3J0cmFpdHN8ZW58MHx8fHwxNzcxNDgzMjA5fDA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1624377103868-c780d0fa2b4c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwyfHxkaXZlcnNlJTIwcHJvZmVzc2lvbmFsJTIwdXNlciUyMGF2YXRhcnMlMjBwb3J0cmFpdHN8ZW58MHx8fHwxNzcxNDgzMjA5fDA&ixlib=rb-4.1.0&q=85"
+      ]
+    },
+    "icons": {
+      "library": "lucide-react",
+      "preferred_icons": {
+        "dashboard": "LayoutDashboard",
+        "customers": "Users",
+        "calculator": "Calculator",
+        "reminders": "MessageSquare",
+        "settings": "Settings",
+        "logout": "LogOut",
+        "wifi": "Wifi"
+      }
+    }
+  },
+  "pages": {
+    "login": {
+      "layout": "Split screen or Centered Card on Abstract Background",
+      "elements": ["Logo", "Email Input", "Password Input", "Login Button", "Forgot Password Link"]
+    },
+    "dashboard": {
+      "layout": "Bento Grid",
+      "widgets": [
+        {"name": "Total Customers", "size": "col-span-1"},
+        {"name": "Active Vouchers", "size": "col-span-1"},
+        {"name": "Revenue (Est)", "size": "col-span-1"},
+        {"name": "Recent Reminders", "size": "col-span-1 md:col-span-2"},
+        {"name": "New Customers List", "size": "col-span-1 md:col-span-2"}
+      ]
+    },
+    "customers": {
+      "layout": "Table View with Filters",
+      "actions": ["Add Customer", "Edit", "Delete", "Filter by Plan"]
+    },
+    "calculator": {
+      "layout": "Two-Column Split",
+      "left_col": "Inputs (Start Date, Plan Selection)",
+      "right_col": "Result Card (Big Typography for Amount)"
+    }
+  },
+  "universal_guidelines": {
+    "general": [
+      "Do not use generic centered layouts.",
+      "Create depth through layered design elements.",
+      "Use glass-morphism effects with backdrop filters (12-24px blur) for sticky headers.",
+      "Every interaction needs micro-animations.",
+      "Use 2-3x more spacing than feels comfortable.",
+      "All interactive elements MUST include data-testid attribute."
+    ],
+    "react_specific": [
+      "Use named exports for components.",
+      "Use default exports for pages.",
+      "Use 'sonner' for toasts.",
+      "Do not use 'transition: all'."
+    ]
+  }
+}
