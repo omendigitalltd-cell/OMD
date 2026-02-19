@@ -49,18 +49,40 @@ export default function Dashboard() {
   const [recentCustomers, setRecentCustomers] = useState([]);
   const [recentReminders, setRecentReminders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [todayProrata, setTodayProrata] = useState({ threeDevice: null, fourDevice: null });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statsRes, customersRes, remindersRes] = await Promise.all([
+        const today = new Date();
+        const currentDay = today.getDate();
+        const currentMonth = today.getMonth() + 1;
+        const currentYear = today.getFullYear();
+
+        const [statsRes, customersRes, remindersRes, prorata3Res, prorata4Res] = await Promise.all([
           axios.get(`${API_URL}/api/dashboard/stats`, getAuthHeader()),
           axios.get(`${API_URL}/api/dashboard/recent-customers`, getAuthHeader()),
           axios.get(`${API_URL}/api/dashboard/recent-reminders`, getAuthHeader()),
+          axios.post(`${API_URL}/api/prorata/calculate`, {
+            start_day: currentDay,
+            month: currentMonth,
+            year: currentYear,
+            plan: "3_devices"
+          }, getAuthHeader()),
+          axios.post(`${API_URL}/api/prorata/calculate`, {
+            start_day: currentDay,
+            month: currentMonth,
+            year: currentYear,
+            plan: "4_devices"
+          }, getAuthHeader()),
         ]);
         setStats(statsRes.data);
         setRecentCustomers(customersRes.data);
         setRecentReminders(remindersRes.data);
+        setTodayProrata({
+          threeDevice: prorata3Res.data,
+          fourDevice: prorata4Res.data
+        });
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
       } finally {
