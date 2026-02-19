@@ -11,9 +11,16 @@ import {
   MessageSquare,
   Clock,
   CheckCircle,
+  Calculator,
+  Calendar,
 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+const MONTH_NAMES = [
+  "", "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
 
 const StatCard = ({ title, value, icon: Icon, color, subtitle }) => (
   <Card className="metric-card border-slate-200 bg-white" data-testid={`stat-${title.toLowerCase().replace(/\s+/g, '-')}`}>
