@@ -111,6 +111,66 @@ export default function Dashboard() {
   return (
     <Layout title="Dashboard">
       <div className="space-y-8" data-testid="dashboard-content">
+        {/* Today's Pro-rata Preview */}
+        <Card className="border-slate-200 bg-gradient-to-br from-violet-600 to-violet-700 text-white" data-testid="prorata-preview-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-bold font-heading flex items-center gap-2 text-white">
+              <Calculator className="w-5 h-5" />
+              Today's Pro-rata Rates
+              <Badge className="bg-white/20 text-white ml-2">
+                <Calendar className="w-3 h-3 mr-1" />
+                Day {todayProrata.threeDevice?.start_day || new Date().getDate()} of {MONTH_NAMES[todayProrata.threeDevice?.month || (new Date().getMonth() + 1)]}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-violet-200 mb-4">
+              If a customer signs up today, they pay:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 3 Devices Package */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Wifi className="w-5 h-5" />
+                    <span className="font-semibold">3 Devices</span>
+                  </div>
+                  <Badge className="bg-white/20 text-white">R200/month</Badge>
+                </div>
+                <p className="text-4xl font-extrabold font-mono" data-testid="prorata-3-devices">
+                  R{todayProrata.threeDevice?.prorata_amount?.toFixed(2) || "0.00"}
+                </p>
+                <p className="text-sm text-violet-200 mt-2">
+                  For {todayProrata.threeDevice?.days_used || 0} remaining days
+                </p>
+                <div className="mt-3 pt-3 border-t border-white/20 text-xs text-violet-200">
+                  Daily rate: R{todayProrata.threeDevice?.daily_rate?.toFixed(2) || "0.00"}
+                </div>
+              </div>
+
+              {/* 4 Devices Package */}
+              <div className="bg-orange-500/30 backdrop-blur-sm rounded-xl p-5 border border-orange-400/30">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Wifi className="w-5 h-5" />
+                    <span className="font-semibold">4 Devices</span>
+                  </div>
+                  <Badge className="bg-orange-500/50 text-white">R300/month</Badge>
+                </div>
+                <p className="text-4xl font-extrabold font-mono" data-testid="prorata-4-devices">
+                  R{todayProrata.fourDevice?.prorata_amount?.toFixed(2) || "0.00"}
+                </p>
+                <p className="text-sm text-violet-200 mt-2">
+                  For {todayProrata.fourDevice?.days_used || 0} remaining days
+                </p>
+                <div className="mt-3 pt-3 border-t border-white/20 text-xs text-violet-200">
+                  Daily rate: R{todayProrata.fourDevice?.daily_rate?.toFixed(2) || "0.00"}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
