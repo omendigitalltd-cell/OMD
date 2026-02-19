@@ -171,7 +171,7 @@ class WiFiHotspotAPITester:
         duplicate_customer = {
             "name": "Duplicate Customer",
             "phone": "+27987654321",
-            "voucher_code": "HS-TEST01",  # Same voucher code
+            "voucher_code": f"HS-TEST{timestamp}",  # Same voucher code as above
             "plan": "3_devices",
             "start_date": "2026-01-15",
             "is_active": True
