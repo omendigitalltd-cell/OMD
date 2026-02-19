@@ -130,10 +130,11 @@ class WiFiHotspotAPITester:
                      "" if success else f"Get customers failed: {data}")
         
         # Test create customer
+        timestamp = datetime.now().strftime('%H%M%S')
         customer_data = {
             "name": "Test Customer",
             "phone": "+27123456789",
-            "voucher_code": "HS-TEST01",
+            "voucher_code": f"HS-TEST{timestamp}",
             "plan": "3_devices",
             "start_date": "2026-01-15",
             "is_active": True
