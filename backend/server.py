@@ -253,7 +253,8 @@ async def create_customer(data: CustomerCreate, email: str = Depends(verify_toke
     await db.customers.insert_one(customer_doc)
     
     response = {**customer_doc, "monthly_rate": get_monthly_rate(data.plan)}
-    del response["_id"] if "_id" in response else None
+    if "_id" in response:
+        del response["_id"]
     return response
 
 @api_router.put("/customers/{customer_id}", response_model=CustomerResponse)
