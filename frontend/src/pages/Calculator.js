@@ -20,10 +20,10 @@ import { Calculator as CalcIcon, Calendar, DollarSign, Info, RotateCcw } from "l
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const DURATION_OPTIONS = [
-  { value: "1", label: "1 Week (7 days)" },
-  { value: "2", label: "2 Weeks (14 days)" },
-  { value: "3", label: "3 Weeks (21 days)" },
-  { value: "4", label: "4 Weeks (28 days)" },
+  { value: "1", label: "1 Week (8 days)", days: 8 },
+  { value: "2", label: "2 Weeks (15 days)", days: 15 },
+  { value: "3", label: "3 Weeks (22 days)", days: 22 },
+  { value: "4", label: "4 Weeks (32 days)", days: 32 },
 ];
 
 export default function Calculator() {
