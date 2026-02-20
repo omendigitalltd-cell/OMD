@@ -470,6 +470,18 @@ export default function Calculator() {
                             </p>
                           </div>
                           <div className="bg-slate-50 rounded-lg p-4">
+                            <p className="text-xs text-slate-500 uppercase tracking-wide">Voucher Started</p>
+                            <p className="text-sm font-bold text-slate-900 mt-1" data-testid="refund-voucher-start">
+                              {new Date(refundResult.voucher_start_date).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="bg-slate-50 rounded-lg p-4">
+                            <p className="text-xs text-slate-500 uppercase tracking-wide">Refund From</p>
+                            <p className="text-sm font-bold text-slate-900 mt-1" data-testid="refund-date">
+                              {new Date(refundResult.refund_start_date).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="bg-slate-50 rounded-lg p-4">
                             <p className="text-xs text-slate-500 uppercase tracking-wide">Days Used</p>
                             <p className="text-lg font-bold text-red-600 mt-1" data-testid="refund-days-used">
                               {refundResult.days_used} days
