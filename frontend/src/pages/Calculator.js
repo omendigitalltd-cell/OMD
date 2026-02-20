@@ -87,6 +87,11 @@ export default function Calculator() {
       toast.error("Please enter a valid amount");
       return;
     }
+
+    if (new Date(refundStartDate) < new Date(voucherStartDate)) {
+      toast.error("Refund date cannot be before voucher start date");
+      return;
+    }
     
     setRefundLoading(true);
     try {
@@ -95,7 +100,8 @@ export default function Calculator() {
         {
           amount: parseFloat(refundAmount),
           duration_weeks: parseInt(refundDuration),
-          start_date: refundStartDate,
+          voucher_start_date: voucherStartDate,
+          refund_start_date: refundStartDate,
         },
         getAuthHeader()
       );
