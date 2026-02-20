@@ -77,13 +77,15 @@ class CustomerResponse(CustomerBase):
 class RefundRequest(BaseModel):
     amount: float
     duration_weeks: int  # 1, 2, 3, or 4 weeks
-    start_date: str  # ISO format date when refund calculation starts
+    voucher_start_date: str  # ISO format date when voucher started
+    refund_start_date: str  # ISO format date when refund calculation starts
 
 class RefundResponse(BaseModel):
     original_amount: float
     duration_weeks: int
     total_days: int
-    start_date: str
+    voucher_start_date: str
+    refund_start_date: str
     days_used: int
     days_remaining: int
     daily_rate: float
