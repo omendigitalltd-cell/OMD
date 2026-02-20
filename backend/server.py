@@ -346,7 +346,9 @@ async def calculate_refund(data: RefundRequest, email: str = Depends(verify_toke
     if refund_start < voucher_start:
         raise HTTPException(status_code=400, detail="Refund date cannot be before voucher start date")
     
-    total_days = data.duration_weeks * 7
+    # Custom duration mapping: 1 week=8 days, 2 weeks=15 days, 3 weeks=22 days, 4 weeks=32 days
+    duration_days_map = {1: 8, 2: 15, 3: 22, 4: 32}
+    total_days = duration_days_map[data.duration_weeks]
     daily_rate = data.amount / total_days
     
     # Calculate days from voucher_start to refund_start
