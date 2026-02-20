@@ -74,6 +74,21 @@ class CustomerResponse(CustomerBase):
     created_at: str
     monthly_rate: float
 
+class RefundRequest(BaseModel):
+    amount: float
+    duration_weeks: int  # 1, 2, 3, or 4 weeks
+    start_date: str  # ISO format date when refund calculation starts
+
+class RefundResponse(BaseModel):
+    original_amount: float
+    duration_weeks: int
+    total_days: int
+    start_date: str
+    days_used: int
+    days_remaining: int
+    daily_rate: float
+    refund_amount: float
+
 class ProRataRequest(BaseModel):
     start_day: int
     month: int
