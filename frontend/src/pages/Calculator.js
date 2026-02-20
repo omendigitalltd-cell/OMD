@@ -371,7 +371,22 @@ export default function Calculator() {
 
                     {/* Start Date */}
                     <div className="space-y-2">
-                      <Label htmlFor="refund-start-date">Voucher Start Date</Label>
+                      <Label htmlFor="voucher-start-date">Voucher Start Date</Label>
+                      <Input
+                        id="voucher-start-date"
+                        type="date"
+                        value={voucherStartDate}
+                        onChange={(e) => setVoucherStartDate(e.target.value)}
+                        data-testid="voucher-start-date-input"
+                      />
+                      <p className="text-xs text-slate-500">
+                        When did the customer start using the voucher?
+                      </p>
+                    </div>
+
+                    {/* Refund Date */}
+                    <div className="space-y-2">
+                      <Label htmlFor="refund-start-date">Refund Date</Label>
                       <Input
                         id="refund-start-date"
                         type="date"
@@ -380,7 +395,7 @@ export default function Calculator() {
                         data-testid="refund-start-date-input"
                       />
                       <p className="text-xs text-slate-500">
-                        Select the date when the customer started using the voucher
+                        From which date should the refund be calculated?
                       </p>
                     </div>
 
