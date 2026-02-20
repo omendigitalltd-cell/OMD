@@ -40,6 +40,7 @@ export default function Calculator() {
   // Refund state
   const [refundAmount, setRefundAmount] = useState("");
   const [refundDuration, setRefundDuration] = useState("1");
+  const [voucherStartDate, setVoucherStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [refundStartDate, setRefundStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [refundResult, setRefundResult] = useState(null);
   const [refundLoading, setRefundLoading] = useState(false);
