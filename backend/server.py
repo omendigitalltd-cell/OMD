@@ -323,6 +323,54 @@ async def get_2026_months(email: str = Depends(verify_token)):
         })
     return months
 
+# ==================== REFUND ROUTES ====================
+
+@api_router.post("/refund/calculate", response_model=RefundResponse)
+async def calculate_refund(data: RefundRequest, email: str = Depends(verify_token)):
+    """Calculate refund based on remaining days of voucher"""
+    if data.duration_weeks not in [1, 2, 3, 4]:
+        raise HTTPException(status_code=400, detail="Duration must be 1, 2, 3, or 4 weeks")
+    
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than 0")
+    
+    try:
+        start_date = datetime.fromisoformat(data.start_date.replace('Z', '+00:00'))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+    
+    total_days = data.duration_weeks * 7
+    daily_rate = data.amount / total_days
+    
+    # Calculate days from start_date to today
+    today = datetime.now(timezone.utc)
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
+    
+    days_used = (today - start_date).days
+    
+    # If start date is in the future, no days used yet
+    if days_used < 0:
+        days_used = 0
+    
+    # Cap days used at total days
+    if days_used > total_days:
+        days_used = total_days
+    
+    days_remaining = total_days - days_used
+    refund_amount = round(daily_rate * days_remaining, 2)
+    
+    return RefundResponse(
+        original_amount=data.amount,
+        duration_weeks=data.duration_weeks,
+        total_days=total_days,
+        start_date=data.start_date,
+        days_used=days_used,
+        days_remaining=days_remaining,
+        daily_rate=round(daily_rate, 2),
+        refund_amount=refund_amount
+    )
+
 # ==================== SETTINGS ROUTES ====================
 
 @api_router.get("/settings/whatsapp")
