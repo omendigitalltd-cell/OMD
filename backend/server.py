@@ -337,23 +337,20 @@ async def calculate_refund(data: RefundRequest, email: str = Depends(verify_toke
         raise HTTPException(status_code=400, detail="Amount must be greater than 0")
     
     try:
-        start_date = datetime.fromisoformat(data.start_date.replace('Z', '+00:00'))
+        voucher_start = datetime.fromisoformat(data.voucher_start_date.replace('Z', '+00:00'))
+        refund_start = datetime.fromisoformat(data.refund_start_date.replace('Z', '+00:00'))
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format")
+    
+    # Ensure refund date is not before voucher start date
+    if refund_start < voucher_start:
+        raise HTTPException(status_code=400, detail="Refund date cannot be before voucher start date")
     
     total_days = data.duration_weeks * 7
     daily_rate = data.amount / total_days
     
-    # Calculate days from start_date to today
-    today = datetime.now(timezone.utc)
-    if start_date.tzinfo is None:
-        start_date = start_date.replace(tzinfo=timezone.utc)
-    
-    days_used = (today - start_date).days
-    
-    # If start date is in the future, no days used yet
-    if days_used < 0:
-        days_used = 0
+    # Calculate days from voucher_start to refund_start
+    days_used = (refund_start - voucher_start).days
     
     # Cap days used at total days
     if days_used > total_days:
@@ -366,7 +363,8 @@ async def calculate_refund(data: RefundRequest, email: str = Depends(verify_toke
         original_amount=data.amount,
         duration_weeks=data.duration_weeks,
         total_days=total_days,
-        start_date=data.start_date,
+        voucher_start_date=data.voucher_start_date,
+        refund_start_date=data.refund_start_date,
         days_used=days_used,
         days_remaining=days_remaining,
         daily_rate=round(daily_rate, 2),
