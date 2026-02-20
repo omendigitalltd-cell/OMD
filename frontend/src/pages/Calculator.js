@@ -547,7 +547,7 @@ export default function Calculator() {
                       {DURATION_OPTIONS.map((option) => (
                         <div key={option.value} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                           <span className="text-sm text-slate-600">{option.value} Week{parseInt(option.value) > 1 ? 's' : ''}</span>
-                          <span className="font-mono font-bold text-slate-700">{parseInt(option.value) * 7} days</span>
+                          <span className="font-mono font-bold text-slate-700">{option.days} days</span>
                         </div>
                       ))}
                     </div>
