@@ -271,6 +271,97 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+def create_distributor_token(email: str, distributor_id: str) -> str:
+    expiration = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+    payload = {
+        "sub": email,
+        "distributor_id": distributor_id,
+        "role": "distributor",
+        "exp": expiration,
+        "iat": datetime.now(timezone.utc)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+async def verify_distributor_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("role") != "distributor":
+            raise HTTPException(status_code=401, detail="Invalid distributor token")
+        return {
+            "email": payload.get("sub"),
+            "distributor_id": payload.get("distributor_id")
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+def parse_bank_statement_pdf(pdf_content: bytes) -> List[dict]:
+    """Parse bank statement PDF and extract transactions"""
+    entries = []
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_content)) as pdf:
+            full_text = ""
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    full_text += text + "\n"
+                
+                # Also try to extract tables
+                tables = page.extract_tables()
+                for table in tables:
+                    for row in table:
+                        if row and len(row) >= 3:
+                            # Try to find amount and reference in row
+                            row_text = " ".join([str(cell) for cell in row if cell])
+                            # Look for amounts (R followed by numbers or just numbers with decimals)
+                            amount_match = re.search(r'R?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)', row_text)
+                            # Look for reference numbers (alphanumeric strings)
+                            ref_match = re.search(r'\b([A-Z0-9]{6,20})\b', row_text)
+                            
+                            if amount_match and ref_match:
+                                try:
+                                    amount_str = amount_match.group(1).replace(',', '').replace(' ', '')
+                                    amount = float(amount_str)
+                                    if amount > 0:
+                                        entries.append({
+                                            "reference": ref_match.group(1),
+                                            "amount": amount,
+                                            "description": row_text[:100],
+                                            "date": datetime.now(timezone.utc).isoformat()
+                                        })
+                                except ValueError:
+                                    pass
+            
+            # Also parse line by line for references and amounts
+            lines = full_text.split('\n')
+            for line in lines:
+                # Look for patterns like: REF123456 R60.00 or similar
+                amount_match = re.search(r'R?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)', line)
+                ref_match = re.search(r'\b([A-Z0-9]{6,20})\b', line)
+                
+                if amount_match and ref_match:
+                    try:
+                        amount_str = amount_match.group(1).replace(',', '').replace(' ', '')
+                        amount = float(amount_str)
+                        ref = ref_match.group(1)
+                        # Avoid duplicates
+                        if amount > 0 and not any(e['reference'] == ref and e['amount'] == amount for e in entries):
+                            entries.append({
+                                "reference": ref,
+                                "amount": amount,
+                                "description": line[:100],
+                                "date": datetime.now(timezone.utc).isoformat()
+                            })
+                    except ValueError:
+                        pass
+    except Exception as e:
+        logger.error(f"Error parsing PDF: {str(e)}")
+    
+    return entries
+
+COMMISSION_RATE = 0.20  # 20% commission
+
 # ==================== AUTH ROUTES ====================
 
 @api_router.post("/auth/register", response_model=TokenResponse)
