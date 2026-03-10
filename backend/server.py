@@ -703,6 +703,422 @@ async def get_recent_reminders(email: str = Depends(verify_token)):
     logs = await db.reminder_logs.find({}, {"_id": 0}).sort("scheduled_for", -1).to_list(5)
     return logs
 
+# ==================== DISTRIBUTOR AUTH ROUTES ====================
+
+@api_router.post("/distributor/register", response_model=TokenResponse)
+async def register_distributor(data: DistributorCreate):
+    existing = await db.distributors.find_one({"email": data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    distributor_doc = {
+        "id": str(uuid.uuid4()),
+        "name": data.name,
+        "email": data.email,
+        "phone": data.phone,
+        "password": hash_password(data.password),
+        "is_active": True,
+        "total_sales": 0.0,
+        "total_commission": 0.0,
+        "pending_commission": 0.0,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.distributors.insert_one(distributor_doc)
+    
+    token = create_distributor_token(data.email, distributor_doc["id"])
+    return TokenResponse(access_token=token)
+
+@api_router.post("/distributor/login", response_model=TokenResponse)
+async def login_distributor(data: DistributorLogin):
+    distributor = await db.distributors.find_one({"email": data.email})
+    if not distributor or not verify_password(data.password, distributor["password"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    if not distributor.get("is_active", True):
+        raise HTTPException(status_code=401, detail="Account is disabled")
+    
+    token = create_distributor_token(data.email, distributor["id"])
+    return TokenResponse(access_token=token)
+
+@api_router.get("/distributor/me")
+async def get_current_distributor(dist_info: dict = Depends(verify_distributor_token)):
+    distributor = await db.distributors.find_one(
+        {"id": dist_info["distributor_id"]}, 
+        {"_id": 0, "password": 0}
+    )
+    if not distributor:
+        raise HTTPException(status_code=404, detail="Distributor not found")
+    return distributor
+
+# ==================== DISTRIBUTOR PROOF OF PAYMENT ROUTES ====================
+
+@api_router.post("/distributor/proofs")
+async def upload_proof_of_payment(
+    reference: str = Form(...),
+    amount: float = Form(...),
+    customer_phone: str = Form(None),
+    notes: str = Form(None),
+    file: UploadFile = File(...),
+    dist_info: dict = Depends(verify_distributor_token)
+):
+    """Upload proof of payment by distributor"""
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "application/pdf"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="File must be an image or PDF")
+    
+    # Read file content
+    file_content = await file.read()
+    file_base64 = base64.b64encode(file_content).decode()
+    
+    # Get distributor info
+    distributor = await db.distributors.find_one({"id": dist_info["distributor_id"]}, {"_id": 0})
+    
+    proof_doc = {
+        "id": str(uuid.uuid4()),
+        "distributor_id": dist_info["distributor_id"],
+        "distributor_name": distributor["name"] if distributor else "Unknown",
+        "reference": reference.upper().strip(),
+        "amount": amount,
+        "customer_phone": customer_phone,
+        "notes": notes,
+        "file_type": file.content_type,
+        "file_name": file.filename,
+        "file_data": file_base64,
+        "status": "pending",
+        "matched_at": None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.proofs_of_payment.insert_one(proof_doc)
+    
+    return {
+        "message": "Proof of payment uploaded successfully",
+        "proof_id": proof_doc["id"],
+        "status": "pending"
+    }
+
+@api_router.get("/distributor/proofs")
+async def get_distributor_proofs(dist_info: dict = Depends(verify_distributor_token)):
+    """Get all proofs uploaded by current distributor"""
+    proofs = await db.proofs_of_payment.find(
+        {"distributor_id": dist_info["distributor_id"]},
+        {"_id": 0, "file_data": 0}
+    ).sort("created_at", -1).to_list(100)
+    return proofs
+
+@api_router.get("/distributor/commission")
+async def get_distributor_commission(dist_info: dict = Depends(verify_distributor_token)):
+    """Get commission summary for current distributor"""
+    distributor = await db.distributors.find_one(
+        {"id": dist_info["distributor_id"]},
+        {"_id": 0, "password": 0}
+    )
+    
+    # Count proofs
+    matched_count = await db.proofs_of_payment.count_documents({
+        "distributor_id": dist_info["distributor_id"],
+        "status": "matched"
+    })
+    pending_count = await db.proofs_of_payment.count_documents({
+        "distributor_id": dist_info["distributor_id"],
+        "status": "pending"
+    })
+    
+    # Calculate totals from matched proofs
+    matched_proofs = await db.proofs_of_payment.find({
+        "distributor_id": dist_info["distributor_id"],
+        "status": "matched"
+    }, {"_id": 0, "amount": 1}).to_list(1000)
+    
+    total_sales = sum(p["amount"] for p in matched_proofs)
+    total_commission = total_sales * COMMISSION_RATE
+    
+    # Get paid commission from payouts
+    payouts = await db.commission_payouts.find({
+        "distributor_id": dist_info["distributor_id"],
+        "status": "paid"
+    }, {"_id": 0, "amount": 1}).to_list(1000)
+    
+    paid_commission = sum(p["amount"] for p in payouts)
+    pending_commission = total_commission - paid_commission
+    
+    return {
+        "distributor_id": dist_info["distributor_id"],
+        "distributor_name": distributor["name"] if distributor else "Unknown",
+        "total_matched_sales": total_sales,
+        "commission_rate": COMMISSION_RATE,
+        "total_commission": round(total_commission, 2),
+        "paid_commission": round(paid_commission, 2),
+        "pending_commission": round(max(0, pending_commission), 2),
+        "matched_proofs": matched_count,
+        "pending_proofs": pending_count
+    }
+
+# ==================== ADMIN DISTRIBUTOR MANAGEMENT ====================
+
+@api_router.get("/admin/distributors")
+async def get_all_distributors(email: str = Depends(verify_token)):
+    """Get all distributors (admin only)"""
+    distributors = await db.distributors.find({}, {"_id": 0, "password": 0}).to_list(1000)
+    
+    # Calculate stats for each distributor
+    for dist in distributors:
+        matched_proofs = await db.proofs_of_payment.find({
+            "distributor_id": dist["id"],
+            "status": "matched"
+        }, {"_id": 0, "amount": 1}).to_list(1000)
+        
+        total_sales = sum(p["amount"] for p in matched_proofs)
+        total_commission = total_sales * COMMISSION_RATE
+        
+        payouts = await db.commission_payouts.find({
+            "distributor_id": dist["id"],
+            "status": "paid"
+        }, {"_id": 0, "amount": 1}).to_list(1000)
+        
+        paid_commission = sum(p["amount"] for p in payouts)
+        
+        dist["total_sales"] = round(total_sales, 2)
+        dist["total_commission"] = round(total_commission, 2)
+        dist["pending_commission"] = round(max(0, total_commission - paid_commission), 2)
+    
+    return distributors
+
+@api_router.get("/admin/distributors/{distributor_id}")
+async def get_distributor(distributor_id: str, email: str = Depends(verify_token)):
+    """Get single distributor details"""
+    distributor = await db.distributors.find_one({"id": distributor_id}, {"_id": 0, "password": 0})
+    if not distributor:
+        raise HTTPException(status_code=404, detail="Distributor not found")
+    return distributor
+
+@api_router.put("/admin/distributors/{distributor_id}")
+async def update_distributor(distributor_id: str, data: DistributorUpdate, email: str = Depends(verify_token)):
+    """Update distributor (admin only)"""
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if update_data:
+        await db.distributors.update_one({"id": distributor_id}, {"$set": update_data})
+    
+    distributor = await db.distributors.find_one({"id": distributor_id}, {"_id": 0, "password": 0})
+    return distributor
+
+@api_router.delete("/admin/distributors/{distributor_id}")
+async def delete_distributor(distributor_id: str, email: str = Depends(verify_token)):
+    """Delete distributor (admin only)"""
+    result = await db.distributors.delete_one({"id": distributor_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Distributor not found")
+    return {"message": "Distributor deleted"}
+
+# ==================== ADMIN PROOF OF PAYMENT MANAGEMENT ====================
+
+@api_router.get("/admin/proofs")
+async def get_all_proofs(status: str = None, email: str = Depends(verify_token)):
+    """Get all proofs of payment (admin only)"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    proofs = await db.proofs_of_payment.find(query, {"_id": 0, "file_data": 0}).sort("created_at", -1).to_list(500)
+    return proofs
+
+@api_router.get("/admin/proofs/{proof_id}")
+async def get_proof_detail(proof_id: str, email: str = Depends(verify_token)):
+    """Get proof details including file"""
+    proof = await db.proofs_of_payment.find_one({"id": proof_id}, {"_id": 0})
+    if not proof:
+        raise HTTPException(status_code=404, detail="Proof not found")
+    return proof
+
+@api_router.put("/admin/proofs/{proof_id}/status")
+async def update_proof_status(proof_id: str, status: str, email: str = Depends(verify_token)):
+    """Update proof status (admin only)"""
+    if status not in ["pending", "matched", "paid", "rejected"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    update_data = {"status": status}
+    if status == "matched":
+        update_data["matched_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.proofs_of_payment.update_one({"id": proof_id}, {"$set": update_data})
+    return {"message": f"Proof status updated to {status}"}
+
+# ==================== BANK STATEMENT & MATCHING ====================
+
+@api_router.post("/admin/bank-statement/upload")
+async def upload_bank_statement(
+    file: UploadFile = File(...),
+    email: str = Depends(verify_token)
+):
+    """Upload bank statement PDF and extract entries"""
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+    
+    file_content = await file.read()
+    entries = parse_bank_statement_pdf(file_content)
+    
+    # Store bank statement
+    statement_doc = {
+        "id": str(uuid.uuid4()),
+        "file_name": file.filename,
+        "entries_count": len(entries),
+        "entries": entries,
+        "uploaded_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.bank_statements.insert_one(statement_doc)
+    
+    return {
+        "message": "Bank statement uploaded",
+        "statement_id": statement_doc["id"],
+        "entries_found": len(entries),
+        "entries": entries[:20]  # Return first 20 for preview
+    }
+
+@api_router.get("/admin/bank-statements")
+async def get_bank_statements(email: str = Depends(verify_token)):
+    """Get all uploaded bank statements"""
+    statements = await db.bank_statements.find({}, {"_id": 0, "entries": 0}).sort("uploaded_at", -1).to_list(50)
+    return statements
+
+@api_router.get("/admin/bank-statements/{statement_id}")
+async def get_bank_statement(statement_id: str, email: str = Depends(verify_token)):
+    """Get bank statement with entries"""
+    statement = await db.bank_statements.find_one({"id": statement_id}, {"_id": 0})
+    if not statement:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    return statement
+
+@api_router.post("/admin/match-proofs")
+async def match_proofs_to_statement(statement_id: str, email: str = Depends(verify_token)):
+    """Match pending proofs against bank statement entries"""
+    statement = await db.bank_statements.find_one({"id": statement_id})
+    if not statement:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    
+    # Get pending proofs
+    pending_proofs = await db.proofs_of_payment.find({"status": "pending"}, {"_id": 0}).to_list(1000)
+    
+    matched_count = 0
+    matches = []
+    
+    for proof in pending_proofs:
+        proof_ref = proof["reference"].upper().strip()
+        proof_amount = proof["amount"]
+        
+        for entry in statement.get("entries", []):
+            entry_ref = entry["reference"].upper().strip()
+            entry_amount = entry["amount"]
+            
+            # Match by reference and amount
+            if proof_ref in entry_ref or entry_ref in proof_ref:
+                if abs(proof_amount - entry_amount) < 0.01:  # Allow small difference
+                    # Update proof status
+                    await db.proofs_of_payment.update_one(
+                        {"id": proof["id"]},
+                        {"$set": {
+                            "status": "matched",
+                            "matched_at": datetime.now(timezone.utc).isoformat(),
+                            "matched_entry": entry
+                        }}
+                    )
+                    matched_count += 1
+                    matches.append({
+                        "proof_id": proof["id"],
+                        "proof_reference": proof_ref,
+                        "proof_amount": proof_amount,
+                        "statement_reference": entry_ref,
+                        "statement_amount": entry_amount,
+                        "distributor_name": proof.get("distributor_name", "Unknown")
+                    })
+                    break
+    
+    return {
+        "message": f"Matched {matched_count} proofs",
+        "matched_count": matched_count,
+        "matches": matches
+    }
+
+# ==================== COMMISSION MANAGEMENT ====================
+
+@api_router.get("/admin/commission/summary")
+async def get_commission_summary(email: str = Depends(verify_token)):
+    """Get commission summary for all distributors"""
+    distributors = await db.distributors.find({}, {"_id": 0, "password": 0}).to_list(1000)
+    
+    summaries = []
+    for dist in distributors:
+        matched_proofs = await db.proofs_of_payment.find({
+            "distributor_id": dist["id"],
+            "status": "matched"
+        }, {"_id": 0, "amount": 1}).to_list(1000)
+        
+        pending_proofs_count = await db.proofs_of_payment.count_documents({
+            "distributor_id": dist["id"],
+            "status": "pending"
+        })
+        
+        total_sales = sum(p["amount"] for p in matched_proofs)
+        total_commission = total_sales * COMMISSION_RATE
+        
+        payouts = await db.commission_payouts.find({
+            "distributor_id": dist["id"],
+            "status": "paid"
+        }, {"_id": 0, "amount": 1}).to_list(1000)
+        
+        paid_commission = sum(p["amount"] for p in payouts)
+        
+        summaries.append({
+            "distributor_id": dist["id"],
+            "distributor_name": dist["name"],
+            "total_matched_sales": round(total_sales, 2),
+            "commission_rate": COMMISSION_RATE,
+            "total_commission": round(total_commission, 2),
+            "paid_commission": round(paid_commission, 2),
+            "pending_commission": round(max(0, total_commission - paid_commission), 2),
+            "matched_proofs": len(matched_proofs),
+            "pending_proofs": pending_proofs_count
+        })
+    
+    return summaries
+
+@api_router.post("/admin/commission/payout")
+async def create_commission_payout(
+    distributor_id: str,
+    amount: float,
+    email: str = Depends(verify_token)
+):
+    """Record commission payout to distributor"""
+    distributor = await db.distributors.find_one({"id": distributor_id})
+    if not distributor:
+        raise HTTPException(status_code=404, detail="Distributor not found")
+    
+    payout_doc = {
+        "id": str(uuid.uuid4()),
+        "distributor_id": distributor_id,
+        "distributor_name": distributor["name"],
+        "amount": amount,
+        "status": "paid",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.commission_payouts.insert_one(payout_doc)
+    
+    return {
+        "message": "Payout recorded",
+        "payout_id": payout_doc["id"],
+        "amount": amount
+    }
+
+@api_router.get("/admin/commission/payouts")
+async def get_commission_payouts(distributor_id: str = None, email: str = Depends(verify_token)):
+    """Get all commission payouts"""
+    query = {}
+    if distributor_id:
+        query["distributor_id"] = distributor_id
+    
+    payouts = await db.commission_payouts.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return payouts
+
 # ==================== ROOT ====================
 
 @api_router.get("/")
