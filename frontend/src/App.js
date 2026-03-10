@@ -6,7 +6,11 @@ import Customers from "./pages/Customers";
 import Calculator from "./pages/Calculator";
 import Reminders from "./pages/Reminders";
 import Settings from "./pages/Settings";
+import Commissions from "./pages/Commissions";
+import DistributorLogin from "./pages/DistributorLogin";
+import DistributorDashboard from "./pages/DistributorDashboard";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { DistributorAuthProvider } from "./context/DistributorAuthContext";
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -29,6 +33,7 @@ const ProtectedRoute = ({ children }) => {
 function AppRoutes() {
   return (
     <Routes>
+      {/* Admin Routes */}
       <Route path="/login" element={<Login />} />
       <Route
         path="/"
@@ -63,6 +68,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/commissions"
+        element={
+          <ProtectedRoute>
+            <Commissions />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/settings"
         element={
           <ProtectedRoute>
@@ -70,6 +83,25 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Distributor Routes */}
+      <Route
+        path="/distributor/login"
+        element={
+          <DistributorAuthProvider>
+            <DistributorLogin />
+          </DistributorAuthProvider>
+        }
+      />
+      <Route
+        path="/distributor"
+        element={
+          <DistributorAuthProvider>
+            <DistributorDashboard />
+          </DistributorAuthProvider>
+        }
+      />
+      
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
