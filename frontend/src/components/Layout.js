@@ -10,6 +10,7 @@ import {
   Wifi,
   Menu,
   X,
+  DollarSign,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
@@ -18,6 +19,7 @@ const navItems = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
   { path: "/customers", label: "Customers", icon: Users },
   { path: "/calculator", label: "Pro-rata Calculator", icon: Calculator },
+  { path: "/commissions", label: "Commissions", icon: DollarSign },
   { path: "/reminders", label: "Reminders", icon: MessageSquare },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
