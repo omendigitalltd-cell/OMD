@@ -145,6 +145,70 @@ class DashboardStats(BaseModel):
     pending_reminders: int
     sent_reminders: int
 
+# ==================== DISTRIBUTOR MODELS ====================
+
+class DistributorCreate(BaseModel):
+    name: str
+    email: str
+    phone: str
+    password: str
+
+class DistributorLogin(BaseModel):
+    email: str
+    password: str
+
+class DistributorUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class DistributorResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    phone: str
+    is_active: bool
+    total_sales: float
+    total_commission: float
+    pending_commission: float
+    created_at: str
+
+class ProofOfPaymentCreate(BaseModel):
+    reference: str
+    amount: float
+    customer_phone: Optional[str] = None
+    notes: Optional[str] = None
+
+class ProofOfPaymentResponse(BaseModel):
+    id: str
+    distributor_id: str
+    distributor_name: str
+    reference: str
+    amount: float
+    customer_phone: Optional[str]
+    notes: Optional[str]
+    file_type: str
+    status: str  # "pending", "matched", "paid", "rejected"
+    matched_at: Optional[str]
+    created_at: str
+
+class BankStatementEntry(BaseModel):
+    reference: str
+    amount: float
+    date: str
+    description: str
+
+class CommissionSummary(BaseModel):
+    distributor_id: str
+    distributor_name: str
+    total_matched_sales: float
+    commission_rate: float
+    total_commission: float
+    paid_commission: float
+    pending_commission: float
+    matched_proofs: int
+    pending_proofs: int
+
 # ==================== HELPERS ====================
 
 PLAN_RATES = {
