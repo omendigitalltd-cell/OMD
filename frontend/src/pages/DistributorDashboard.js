@@ -50,12 +50,11 @@ export default function DistributorDashboard() {
   
   // Upload dialog state
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [reference, setReference] = useState("");
-  const [amount, setAmount] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
 
   const fetchData = useCallback(async () => {
     if (!isAuthenticated) return;
