@@ -17,6 +17,8 @@ import base64
 import re
 import pdfplumber
 import io
+import pytesseract
+from PIL import Image
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
