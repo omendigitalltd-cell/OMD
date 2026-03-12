@@ -356,33 +356,69 @@ export default function DistributorDashboard() {
 
       {/* Upload Dialog */}
       <Dialog open={uploadDialogOpen} onOpenChange={closeUploadDialog}>
-        <DialogContent className="bg-slate-800 border-slate-700 text-white">
+        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-heading">Upload Proof of Payment</DialogTitle>
+            <DialogTitle className="font-heading">Upload Proofs of Payment</DialogTitle>
           </DialogHeader>
           
-          {uploadResult ? (
+          {uploadResults ? (
             <div className="space-y-4">
-              <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-lg p-4">
+              <div className={`${uploadResults.successful > 0 ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-red-500/20 border-red-500/30'} border rounded-lg p-4`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <CheckCircle className="w-5 h-5 text-emerald-400" />
-                  <span className="font-semibold text-emerald-400">Successfully Extracted!</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-slate-400">Reference</p>
-                    <p className="font-mono font-bold text-white">{uploadResult.extracted_reference || "Not found"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400">Amount</p>
-                    <p className="font-mono font-bold text-white">R{uploadResult.extracted_amount?.toFixed(2) || "0.00"}</p>
-                  </div>
-                </div>
-                <div className="mt-3 pt-3 border-t border-emerald-500/30">
-                  <p className="text-xs text-slate-400">Commission (20%)</p>
-                  <p className="font-mono font-bold text-emerald-400">R{((uploadResult.extracted_amount || 0) * 0.2).toFixed(2)}</p>
+                  {uploadResults.successful > 0 ? (
+                    <CheckCircle className="w-5 h-5 text-emerald-400" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-red-400" />
+                  )}
+                  <span className={`font-semibold ${uploadResults.successful > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {uploadResults.successful} of {uploadResults.successful + uploadResults.failed} files processed successfully
+                  </span>
                 </div>
               </div>
+              
+              {/* Results list */}
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {uploadResults.results.map((result, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`p-3 rounded-lg ${result.success ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-red-500/10 border border-red-500/20'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium truncate flex-1">{result.file_name}</span>
+                      {result.success ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-400 ml-2" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-red-400 ml-2" />
+                      )}
+                    </div>
+                    {result.success ? (
+                      <div className="flex gap-4 mt-2 text-xs">
+                        <span className="text-slate-400">Ref: <span className="font-mono text-white">{result.extracted_reference}</span></span>
+                        <span className="text-slate-400">Amount: <span className="font-mono text-white">R{result.extracted_amount?.toFixed(2)}</span></span>
+                        <span className="text-slate-400">Commission: <span className="font-mono text-emerald-400">R{result.commission?.toFixed(2)}</span></span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-red-400 mt-1">{result.error}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Total commission */}
+              {uploadResults.successful > 0 && (
+                <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-300">Total Commission Earned</span>
+                    <span className="font-mono font-bold text-xl text-emerald-400">
+                      R{uploadResults.results
+                        .filter(r => r.success)
+                        .reduce((sum, r) => sum + (r.commission || 0), 0)
+                        .toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
               <DialogFooter>
                 <Button onClick={closeUploadDialog} className="bg-emerald-600 hover:bg-emerald-700 w-full">
                   Done
@@ -394,26 +430,47 @@ export default function DistributorDashboard() {
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
                 <div className="flex items-center gap-2 mb-2">
                   <FileText className="w-5 h-5 text-orange-400" />
-                  <span className="font-medium text-slate-200">Auto-Extract</span>
+                  <span className="font-medium text-slate-200">Batch Upload (up to 10 files)</span>
                 </div>
                 <p className="text-sm text-slate-400">
-                  Upload the proof of payment file and the system will automatically extract the reference number and amount.
+                  Select multiple proof of payment files. The system will automatically extract reference numbers and amounts from each file.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="file" className="text-slate-300">Proof File (Image/PDF) *</Label>
+                <Label htmlFor="files" className="text-slate-300">Proof Files (Image/PDF) *</Label>
                 <Input
-                  id="file"
+                  id="files"
                   type="file"
                   accept="image/*,.pdf"
-                  onChange={(e) => setFile(e.target.files[0])}
-                  required
+                  multiple
+                  onChange={handleFileChange}
                   className="bg-slate-700 border-slate-600 text-white file:bg-orange-500 file:text-white file:border-0 file:mr-4 file:px-4 file:py-2 file:rounded-lg file:cursor-pointer"
                   data-testid="file-input"
                 />
-                <p className="text-xs text-slate-500">Supported: JPG, PNG, GIF, PDF</p>
+                <p className="text-xs text-slate-500">Select up to 10 files (JPG, PNG, GIF, PDF)</p>
               </div>
+
+              {/* Selected files list */}
+              {files.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Selected Files ({files.length})</Label>
+                  <div className="bg-slate-700/30 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                    {files.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-slate-700 rounded px-3 py-2">
+                        <span className="text-sm text-slate-300 truncate flex-1">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(idx)}
+                          className="text-red-400 hover:text-red-300 ml-2"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="customer-phone" className="text-slate-300">Customer Phone (optional)</Label>
@@ -449,19 +506,19 @@ export default function DistributorDashboard() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={uploading || !file}
+                  disabled={uploading || files.length === 0}
                   className="bg-orange-500 hover:bg-orange-600"
                   data-testid="submit-upload-btn"
                 >
                   {uploading ? (
                     <>
                       <Upload className="w-4 h-4 mr-2 animate-pulse" />
-                      Processing...
+                      Processing {files.length} file(s)...
                     </>
                   ) : (
                     <>
                       <Upload className="w-4 h-4 mr-2" />
-                      Upload & Extract
+                      Upload {files.length > 0 ? `${files.length} File(s)` : '& Extract'}
                     </>
                   )}
                 </Button>
