@@ -1178,35 +1178,58 @@ async def match_proofs_to_statement(statement_id: str, email: str = Depends(veri
     matches = []
     
     for proof in pending_proofs:
-        proof_ref = proof["reference"].upper().strip()
+        proof_ref = proof["reference"].upper().strip().replace('_', ' ')
         proof_amount = proof["amount"]
         
         for entry in statement.get("entries", []):
-            entry_ref = entry["reference"].upper().strip()
+            entry_ref = entry["reference"].upper().strip().replace('_', ' ')
             entry_amount = entry["amount"]
             
-            # Match by reference and amount
-            if proof_ref in entry_ref or entry_ref in proof_ref:
-                if abs(proof_amount - entry_amount) < 0.01:  # Allow small difference
-                    # Update proof status
-                    await db.proofs_of_payment.update_one(
-                        {"id": proof["id"]},
-                        {"$set": {
-                            "status": "matched",
-                            "matched_at": datetime.now(timezone.utc).isoformat(),
-                            "matched_entry": entry
-                        }}
-                    )
-                    matched_count += 1
-                    matches.append({
-                        "proof_id": proof["id"],
-                        "proof_reference": proof_ref,
-                        "proof_amount": proof_amount,
-                        "statement_reference": entry_ref,
-                        "statement_amount": entry_amount,
-                        "distributor_name": proof.get("distributor_name", "Unknown")
-                    })
-                    break
+            # Match by checking if reference names match (partial match allowed)
+            # E.g., "BUTHELEZI" matches "S_BUTHELEZI" or "S BUTHELEZI"
+            ref_match = False
+            
+            # Check if entry reference is contained in proof reference or vice versa
+            proof_words = proof_ref.split()
+            entry_words = entry_ref.split()
+            
+            # Check if any significant word matches (usually surname)
+            for pw in proof_words:
+                if len(pw) >= 3:  # Only check words with 3+ chars
+                    for ew in entry_words:
+                        if len(ew) >= 3:
+                            if pw in ew or ew in pw or pw == ew:
+                                ref_match = True
+                                break
+                    if ref_match:
+                        break
+            
+            # Also check direct containment
+            if not ref_match:
+                if entry_ref in proof_ref or proof_ref in entry_ref:
+                    ref_match = True
+            
+            # If reference matches, check amount (allow small difference)
+            if ref_match and abs(proof_amount - entry_amount) < 1.0:
+                # Update proof status
+                await db.proofs_of_payment.update_one(
+                    {"id": proof["id"]},
+                    {"$set": {
+                        "status": "matched",
+                        "matched_at": datetime.now(timezone.utc).isoformat(),
+                        "matched_entry": entry
+                    }}
+                )
+                matched_count += 1
+                matches.append({
+                    "proof_id": proof["id"],
+                    "proof_reference": proof["reference"],
+                    "proof_amount": proof_amount,
+                    "statement_reference": entry["reference"],
+                    "statement_amount": entry_amount,
+                    "distributor_name": proof.get("distributor_name", "Unknown")
+                })
+                break
     
     return {
         "message": f"Matched {matched_count} proofs",
