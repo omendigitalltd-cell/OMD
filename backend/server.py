@@ -823,14 +823,12 @@ async def get_current_distributor(dist_info: dict = Depends(verify_distributor_t
 
 @api_router.post("/distributor/proofs")
 async def upload_proof_of_payment(
-    reference: str = Form(...),
-    amount: float = Form(...),
+    file: UploadFile = File(...),
     customer_phone: str = Form(None),
     notes: str = Form(None),
-    file: UploadFile = File(...),
     dist_info: dict = Depends(verify_distributor_token)
 ):
-    """Upload proof of payment by distributor"""
+    """Upload proof of payment by distributor - auto-extracts reference and amount"""
     # Validate file type
     allowed_types = ["image/jpeg", "image/png", "image/gif", "application/pdf"]
     if file.content_type not in allowed_types:
@@ -840,6 +838,18 @@ async def upload_proof_of_payment(
     file_content = await file.read()
     file_base64 = base64.b64encode(file_content).decode()
     
+    # Extract reference and amount from file
+    if file.content_type == "application/pdf":
+        extracted = extract_from_proof_pdf(file_content)
+    else:
+        extracted = extract_from_proof_image(file_content)
+    
+    if not extracted["reference"] and not extracted["amount"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Could not extract reference or amount from file. Please ensure the proof of payment is clear and readable."
+        )
+    
     # Get distributor info
     distributor = await db.distributors.find_one({"id": dist_info["distributor_id"]}, {"_id": 0})
     
@@ -847,8 +857,8 @@ async def upload_proof_of_payment(
         "id": str(uuid.uuid4()),
         "distributor_id": dist_info["distributor_id"],
         "distributor_name": distributor["name"] if distributor else "Unknown",
-        "reference": reference.upper().strip(),
-        "amount": amount,
+        "reference": extracted["reference"] or "UNKNOWN",
+        "amount": extracted["amount"] or 0.0,
         "customer_phone": customer_phone,
         "notes": notes,
         "file_type": file.content_type,
@@ -856,6 +866,7 @@ async def upload_proof_of_payment(
         "file_data": file_base64,
         "status": "pending",
         "matched_at": None,
+        "extracted_text": extracted.get("raw_text", "")[:200],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
@@ -864,6 +875,8 @@ async def upload_proof_of_payment(
     return {
         "message": "Proof of payment uploaded successfully",
         "proof_id": proof_doc["id"],
+        "extracted_reference": extracted["reference"],
+        "extracted_amount": extracted["amount"],
         "status": "pending"
     }
 
