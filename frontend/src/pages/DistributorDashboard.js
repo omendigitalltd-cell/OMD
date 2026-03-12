@@ -327,96 +327,119 @@ export default function DistributorDashboard() {
       </main>
 
       {/* Upload Dialog */}
-      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+      <Dialog open={uploadDialogOpen} onOpenChange={closeUploadDialog}>
         <DialogContent className="bg-slate-800 border-slate-700 text-white">
           <DialogHeader>
             <DialogTitle className="font-heading">Upload Proof of Payment</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleUpload} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="reference" className="text-slate-300">Payment Reference *</Label>
-              <Input
-                id="reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder="e.g., REF123456"
-                required
-                className="bg-slate-700 border-slate-600 text-white"
-                data-testid="reference-input"
-              />
-              <p className="text-xs text-slate-500">Enter the reference number from the payment</p>
+          
+          {uploadResult ? (
+            <div className="space-y-4">
+              <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle className="w-5 h-5 text-emerald-400" />
+                  <span className="font-semibold text-emerald-400">Successfully Extracted!</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-slate-400">Reference</p>
+                    <p className="font-mono font-bold text-white">{uploadResult.extracted_reference || "Not found"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">Amount</p>
+                    <p className="font-mono font-bold text-white">R{uploadResult.extracted_amount?.toFixed(2) || "0.00"}</p>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-emerald-500/30">
+                  <p className="text-xs text-slate-400">Commission (20%)</p>
+                  <p className="font-mono font-bold text-emerald-400">R{((uploadResult.extracted_amount || 0) * 0.2).toFixed(2)}</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={closeUploadDialog} className="bg-emerald-600 hover:bg-emerald-700 w-full">
+                  Done
+                </Button>
+              </DialogFooter>
             </div>
+          ) : (
+            <form onSubmit={handleUpload} className="space-y-4">
+              <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="w-5 h-5 text-orange-400" />
+                  <span className="font-medium text-slate-200">Auto-Extract</span>
+                </div>
+                <p className="text-sm text-slate-400">
+                  Upload the proof of payment file and the system will automatically extract the reference number and amount.
+                </p>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="amount" className="text-slate-300">Amount (R) *</Label>
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="e.g., 60.00"
-                required
-                className="bg-slate-700 border-slate-600 text-white font-mono"
-                data-testid="amount-input"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="file" className="text-slate-300">Proof File (Image/PDF) *</Label>
+                <Input
+                  id="file"
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setFile(e.target.files[0])}
+                  required
+                  className="bg-slate-700 border-slate-600 text-white file:bg-orange-500 file:text-white file:border-0 file:mr-4 file:px-4 file:py-2 file:rounded-lg file:cursor-pointer"
+                  data-testid="file-input"
+                />
+                <p className="text-xs text-slate-500">Supported: JPG, PNG, GIF, PDF</p>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="customer-phone" className="text-slate-300">Customer Phone (optional)</Label>
-              <Input
-                id="customer-phone"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="+27 XX XXX XXXX"
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer-phone" className="text-slate-300">Customer Phone (optional)</Label>
+                <Input
+                  id="customer-phone"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="+27 XX XXX XXXX"
+                  className="bg-slate-700 border-slate-600 text-white"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="notes" className="text-slate-300">Notes (optional)</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any additional notes..."
-                rows={2}
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="text-slate-300">Notes (optional)</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Any additional notes..."
+                  rows={2}
+                  className="bg-slate-700 border-slate-600 text-white"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="file" className="text-slate-300">Proof File (Image/PDF) *</Label>
-              <Input
-                id="file"
-                type="file"
-                accept="image/*,.pdf"
-                onChange={(e) => setFile(e.target.files[0])}
-                required
-                className="bg-slate-700 border-slate-600 text-white file:bg-slate-600 file:text-white file:border-0 file:mr-4"
-                data-testid="file-input"
-              />
-            </div>
-
-            <DialogFooter className="gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setUploadDialogOpen(false)}
-                className="border-slate-600 text-slate-300 hover:bg-slate-700"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={uploading}
-                className="bg-orange-500 hover:bg-orange-600"
-                data-testid="submit-upload-btn"
-              >
-                {uploading ? "Uploading..." : "Upload Proof"}
-              </Button>
-            </DialogFooter>
-          </form>
+              <DialogFooter className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeUploadDialog}
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={uploading || !file}
+                  className="bg-orange-500 hover:bg-orange-600"
+                  data-testid="submit-upload-btn"
+                >
+                  {uploading ? (
+                    <>
+                      <Upload className="w-4 h-4 mr-2 animate-pulse" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload & Extract
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>
