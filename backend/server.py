@@ -364,6 +364,73 @@ def parse_bank_statement_pdf(pdf_content: bytes) -> List[dict]:
 
 COMMISSION_RATE = 0.20  # 20% commission
 
+def extract_from_proof_image(image_content: bytes) -> dict:
+    """Extract reference and amount from proof of payment image using OCR"""
+    try:
+        image = Image.open(io.BytesIO(image_content))
+        text = pytesseract.image_to_string(image)
+        return extract_reference_and_amount(text)
+    except Exception as e:
+        logger.error(f"Error extracting from image: {str(e)}")
+        return {"reference": None, "amount": None, "raw_text": ""}
+
+def extract_from_proof_pdf(pdf_content: bytes) -> dict:
+    """Extract reference and amount from proof of payment PDF"""
+    try:
+        full_text = ""
+        with pdfplumber.open(io.BytesIO(pdf_content)) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    full_text += text + "\n"
+        return extract_reference_and_amount(full_text)
+    except Exception as e:
+        logger.error(f"Error extracting from PDF: {str(e)}")
+        return {"reference": None, "amount": None, "raw_text": ""}
+
+def extract_reference_and_amount(text: str) -> dict:
+    """Extract reference number and amount from text"""
+    result = {"reference": None, "amount": None, "raw_text": text[:500]}
+    
+    # Common reference patterns in South African bank payments
+    # Look for patterns like: Reference: ABC123, Ref: ABC123, REF123456789
+    ref_patterns = [
+        r'[Rr]ef(?:erence)?[:\s]*([A-Z0-9]{6,20})',
+        r'[Pp]ayment\s+[Rr]ef[:\s]*([A-Z0-9]{6,20})',
+        r'\b([A-Z]{2,4}[0-9]{6,16})\b',  # Common bank ref format
+        r'\b([0-9]{10,20})\b',  # Numeric reference
+    ]
+    
+    for pattern in ref_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            result["reference"] = match.group(1).upper()
+            break
+    
+    # Look for amount patterns - South African Rand
+    # Patterns: R60.00, R 60.00, ZAR 60.00, 60.00, R60, etc.
+    amount_patterns = [
+        r'[Rr]\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',  # R60.00 or R 60.00
+        r'ZAR\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',   # ZAR 60.00
+        r'[Aa]mount[:\s]*[Rr]?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',  # Amount: R60.00
+        r'[Tt]otal[:\s]*[Rr]?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',   # Total: R60.00
+        r'[Pp]aid[:\s]*[Rr]?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',    # Paid: R60.00
+    ]
+    
+    for pattern in amount_patterns:
+        match = re.search(pattern, text)
+        if match:
+            try:
+                amount_str = match.group(1).replace(',', '').replace(' ', '')
+                amount = float(amount_str)
+                if amount > 0 and amount < 100000:  # Reasonable amount range
+                    result["amount"] = amount
+                    break
+            except ValueError:
+                continue
+    
+    return result
+
 # ==================== AUTH ROUTES ====================
 
 @api_router.post("/auth/register", response_model=TokenResponse)
