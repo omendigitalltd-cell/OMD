@@ -86,17 +86,26 @@ export default function DistributorDashboard() {
   const handleUpload = async (e) => {
     e.preventDefault();
     
-    if (!file) {
-      toast.error("Please select a file");
+    if (!files || files.length === 0) {
+      toast.error("Please select at least one file");
+      return;
+    }
+    
+    if (files.length > 10) {
+      toast.error("Maximum 10 files allowed per upload");
       return;
     }
     
     setUploading(true);
-    setUploadResult(null);
+    setUploadResults(null);
     const formData = new FormData();
     formData.append("customer_phone", customerPhone);
     formData.append("notes", notes);
-    formData.append("file", file);
+    
+    // Append all files
+    for (let i = 0; i < files.length; i++) {
+      formData.append("files", files[i]);
+    }
     
     try {
       const response = await axios.post(`${API_URL}/api/distributor/proofs`, formData, {
@@ -106,21 +115,40 @@ export default function DistributorDashboard() {
           "Content-Type": "multipart/form-data",
         },
       });
-      setUploadResult(response.data);
-      toast.success("Proof uploaded successfully!");
+      setUploadResults(response.data);
+      if (response.data.successful > 0) {
+        toast.success(`${response.data.successful} proof(s) uploaded successfully!`);
+      }
+      if (response.data.failed > 0) {
+        toast.error(`${response.data.failed} file(s) failed to process`);
+      }
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Upload failed - could not read file");
+      toast.error(error.response?.data?.detail || "Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
+  const handleFileChange = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    if (selectedFiles.length > 10) {
+      toast.error("Maximum 10 files allowed");
+      setFiles(selectedFiles.slice(0, 10));
+    } else {
+      setFiles(selectedFiles);
+    }
+  };
+
+  const removeFile = (index) => {
+    setFiles(files.filter((_, i) => i !== index));
+  };
+
   const resetForm = () => {
     setCustomerPhone("");
     setNotes("");
-    setFile(null);
-    setUploadResult(null);
+    setFiles([]);
+    setUploadResults(null);
   };
 
   const closeUploadDialog = () => {
