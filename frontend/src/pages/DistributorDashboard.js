@@ -92,38 +92,40 @@ export default function DistributorDashboard() {
     }
     
     setUploading(true);
+    setUploadResult(null);
     const formData = new FormData();
-    formData.append("reference", reference.toUpperCase());
-    formData.append("amount", amount);
     formData.append("customer_phone", customerPhone);
     formData.append("notes", notes);
     formData.append("file", file);
     
     try {
-      await axios.post(`${API_URL}/api/distributor/proofs`, formData, {
+      const response = await axios.post(`${API_URL}/api/distributor/proofs`, formData, {
         ...getAuthHeader(),
         headers: {
           ...getAuthHeader().headers,
           "Content-Type": "multipart/form-data",
         },
       });
+      setUploadResult(response.data);
       toast.success("Proof uploaded successfully!");
-      setUploadDialogOpen(false);
-      resetForm();
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Upload failed");
+      toast.error(error.response?.data?.detail || "Upload failed - could not read file");
     } finally {
       setUploading(false);
     }
   };
 
   const resetForm = () => {
-    setReference("");
-    setAmount("");
     setCustomerPhone("");
     setNotes("");
     setFile(null);
+    setUploadResult(null);
+  };
+
+  const closeUploadDialog = () => {
+    setUploadDialogOpen(false);
+    resetForm();
   };
 
   const handleLogout = () => {
