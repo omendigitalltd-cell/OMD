@@ -309,54 +309,77 @@ def parse_bank_statement_pdf(pdf_content: bytes) -> List[dict]:
                 if text:
                     full_text += text + "\n"
                 
-                # Also try to extract tables
+                # Try to extract tables
                 tables = page.extract_tables()
                 for table in tables:
                     for row in table:
-                        if row and len(row) >= 3:
-                            # Try to find amount and reference in row
+                        if row and len(row) >= 2:
                             row_text = " ".join([str(cell) for cell in row if cell])
-                            # Look for amounts (R followed by numbers or just numbers with decimals)
-                            amount_match = re.search(r'R?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)', row_text)
-                            # Look for reference numbers (alphanumeric strings)
-                            ref_match = re.search(r'\b([A-Z0-9]{6,20})\b', row_text)
+                            # Skip header rows and empty rows
+                            if any(header in row_text.lower() for header in ['date', 'description', 'balance', 'transaction']):
+                                continue
                             
-                            if amount_match and ref_match:
+                            # Look for transaction patterns with amounts
+                            # Capitec format: Date | Description | Amount | Balance
+                            # Look for R amount or just amount with +/- sign
+                            amount_match = re.search(r'[+\-]?\s*[Rr]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2}))', row_text)
+                            if amount_match:
                                 try:
-                                    amount_str = amount_match.group(1).replace(',', '').replace(' ', '')
-                                    amount = float(amount_str)
-                                    if amount > 0:
-                                        entries.append({
-                                            "reference": ref_match.group(1),
-                                            "amount": amount,
-                                            "description": row_text[:100],
-                                            "date": datetime.now(timezone.utc).isoformat()
-                                        })
+                                    amount = float(amount_match.group(1).replace(',', ''))
+                                    if amount > 0 and amount < 50000:
+                                        # Extract reference/name from description
+                                        # Look for names in the format: "Transfer M HLONGWANE" or "Deposit SURNAME"
+                                        ref_patterns = [
+                                            r'(?:Transfer|Deposit|Credit|Payment)\s+([A-Z][A-Z\s]{2,25}?)(?:\s+[+\-R]|\s*$)',
+                                            r'(?:from|FROM)\s+([A-Z][A-Z\s]{2,25}?)(?:\s+[+\-R]|\s*$)',
+                                            r'\b([A-Z]{2}[A-Z]+)\b',  # Uppercase names
+                                        ]
+                                        
+                                        ref_value = None
+                                        for pattern in ref_patterns:
+                                            ref_match = re.search(pattern, row_text, re.IGNORECASE)
+                                            if ref_match:
+                                                ref_value = ref_match.group(1).strip().upper()
+                                                # Filter out common non-reference words
+                                                if ref_value not in ['CAPITEC', 'BANK', 'BUSINESS', 'ACCOUNT', 'TRANSFER', 'DEPOSIT', 'LOCAL', 'PURCHASE', 'DEBIT', 'ORDER', 'CREDIT']:
+                                                    break
+                                                ref_value = None
+                                        
+                                        if ref_value:
+                                            entries.append({
+                                                "reference": ref_value,
+                                                "amount": amount,
+                                                "description": row_text[:150],
+                                                "date": datetime.now(timezone.utc).isoformat()
+                                            })
                                 except ValueError:
                                     pass
             
-            # Also parse line by line for references and amounts
+            # Also parse line by line for Capitec statement format
             lines = full_text.split('\n')
             for line in lines:
-                # Look for patterns like: REF123456 R60.00 or similar
-                amount_match = re.search(r'R?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)', line)
-                ref_match = re.search(r'\b([A-Z0-9]{6,20})\b', line)
-                
-                if amount_match and ref_match:
+                # Look for lines with amounts like +60.00 or R60.00
+                amount_match = re.search(r'[+]\s*(\d{1,3}(?:,\d{3})*\.\d{2})', line)
+                if amount_match:
                     try:
-                        amount_str = amount_match.group(1).replace(',', '').replace(' ', '')
-                        amount = float(amount_str)
-                        ref = ref_match.group(1)
-                        # Avoid duplicates
-                        if amount > 0 and not any(e['reference'] == ref and e['amount'] == amount for e in entries):
-                            entries.append({
-                                "reference": ref,
-                                "amount": amount,
-                                "description": line[:100],
-                                "date": datetime.now(timezone.utc).isoformat()
-                            })
+                        amount = float(amount_match.group(1).replace(',', ''))
+                        if amount >= 10 and amount < 50000:  # Reasonable payment range
+                            # Extract the name/reference from the line
+                            # Pattern: "Ret Cr Transfer S BUTHELEZI +60.00"
+                            name_match = re.search(r'(?:Transfer|Deposit|Credit)\s+([A-Z](?:\s+)?[A-Z]+)', line, re.IGNORECASE)
+                            if name_match:
+                                ref_value = name_match.group(1).strip().upper().replace(' ', '_')
+                                # Avoid duplicates
+                                if not any(e['reference'] == ref_value and abs(e['amount'] - amount) < 0.01 for e in entries):
+                                    entries.append({
+                                        "reference": ref_value,
+                                        "amount": amount,
+                                        "description": line[:150],
+                                        "date": datetime.now(timezone.utc).isoformat()
+                                    })
                     except ValueError:
                         pass
+                        
     except Exception as e:
         logger.error(f"Error parsing PDF: {str(e)}")
     
