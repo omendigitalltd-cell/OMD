@@ -392,36 +392,68 @@ def extract_reference_and_amount(text: str) -> dict:
     """Extract reference number and amount from text"""
     result = {"reference": None, "amount": None, "raw_text": text[:500]}
     
-    # Common reference patterns in South African bank payments
-    # Look for patterns like: Reference: ABC123, Ref: ABC123, REF123456789
+    # Normalize text - handle line breaks and multiple spaces
+    normalized_text = re.sub(r'\s+', ' ', text)
+    
+    # Look for reference patterns - prioritize text that comes AFTER "reference" or "ref"
     ref_patterns = [
-        r'[Rr]ef(?:erence)?[:\s]*([A-Z0-9]{6,20})',
-        r'[Pp]ayment\s+[Rr]ef[:\s]*([A-Z0-9]{6,20})',
-        r'\b([A-Z]{2,4}[0-9]{6,16})\b',  # Common bank ref format
-        r'\b([0-9]{10,20})\b',  # Numeric reference
+        # Patterns where reference appears after the word "Reference" or "Ref"
+        r'[Rr]eference\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        r'[Rr]ef\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        r'[Rr]eference\s+[Nn]o\.?\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        r'[Rr]ef\s+[Nn]o\.?\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        r'[Rr]eference\s+[Nn]umber\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        r'[Pp]ayment\s+[Rr]ef(?:erence)?\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        r'[Tt]ransaction\s+[Rr]ef(?:erence)?\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        r'[Bb]ank\s+[Rr]ef(?:erence)?\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        r'[Yy]our\s+[Rr]ef(?:erence)?\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        r'[Mm]y\s+[Rr]ef(?:erence)?\s*[:#]?\s*([A-Za-z0-9]{4,25})',
+        # FNB, Capitec, Standard Bank, ABSA, Nedbank patterns
+        r'[Rr]ef[:\s]+([A-Za-z0-9\-]{6,25})',
+        r'[Rr]eference[:\s]+([A-Za-z0-9\-]{6,25})',
     ]
     
     for pattern in ref_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
+        match = re.search(pattern, normalized_text)
         if match:
-            result["reference"] = match.group(1).upper()
-            break
+            ref_value = match.group(1).strip()
+            # Filter out common false positives
+            if ref_value.upper() not in ['NUMBER', 'NO', 'REF', 'REFERENCE', 'THE', 'FOR', 'AND']:
+                result["reference"] = ref_value.upper()
+                break
+    
+    # If still no reference found, try to find standalone alphanumeric codes
+    if not result["reference"]:
+        # Look for patterns that look like bank references
+        fallback_patterns = [
+            r'\b([A-Z]{2,4}[0-9]{8,16})\b',  # Like FNB12345678
+            r'\b([0-9]{10,16})\b',  # Numeric only references
+            r'\b([A-Z0-9]{10,20})\b',  # Alphanumeric
+        ]
+        for pattern in fallback_patterns:
+            match = re.search(pattern, text.upper())
+            if match:
+                ref_value = match.group(1)
+                if len(ref_value) >= 8:
+                    result["reference"] = ref_value
+                    break
     
     # Look for amount patterns - South African Rand
     # Patterns: R60.00, R 60.00, ZAR 60.00, 60.00, R60, etc.
     amount_patterns = [
-        r'[Rr]\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',  # R60.00 or R 60.00
-        r'ZAR\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',   # ZAR 60.00
-        r'[Aa]mount[:\s]*[Rr]?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',  # Amount: R60.00
-        r'[Tt]otal[:\s]*[Rr]?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',   # Total: R60.00
-        r'[Pp]aid[:\s]*[Rr]?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:\.\d{2})?)',    # Paid: R60.00
+        r'[Aa]mount[:\s]*[Rr]?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:[.,]\d{2})?)',  # Amount: R60.00
+        r'[Tt]otal[:\s]*[Rr]?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:[.,]\d{2})?)',   # Total: R60.00
+        r'[Pp]aid[:\s]*[Rr]?\s*(\d{1,3}(?:[,\s]?\d{3})*(?:[.,]\d{2})?)',    # Paid: R60.00
+        r'[Rr]\s*(\d{1,3}(?:[,\s]?\d{3})*(?:[.,]\d{2}))',  # R60.00 or R 60.00 (with decimals)
+        r'ZAR\s*(\d{1,3}(?:[,\s]?\d{3})*(?:[.,]\d{2})?)',   # ZAR 60.00
+        r'[Rr](\d{2,6}(?:[.,]\d{2})?)\b',  # R60 or R60.00 (shorter match)
     ]
     
     for pattern in amount_patterns:
-        match = re.search(pattern, text)
+        match = re.search(pattern, normalized_text)
         if match:
             try:
-                amount_str = match.group(1).replace(',', '').replace(' ', '')
+                amount_str = match.group(1).replace(',', '').replace(' ', '').replace(',', '.')
                 amount = float(amount_str)
                 if amount > 0 and amount < 100000:  # Reasonable amount range
                     result["amount"] = amount
