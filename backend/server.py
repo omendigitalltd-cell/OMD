@@ -823,61 +823,98 @@ async def get_current_distributor(dist_info: dict = Depends(verify_distributor_t
 
 @api_router.post("/distributor/proofs")
 async def upload_proof_of_payment(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     customer_phone: str = Form(None),
     notes: str = Form(None),
     dist_info: dict = Depends(verify_distributor_token)
 ):
-    """Upload proof of payment by distributor - auto-extracts reference and amount"""
-    # Validate file type
+    """Upload multiple proofs of payment by distributor - auto-extracts reference and amount"""
+    if len(files) > 10:
+        raise HTTPException(status_code=400, detail="Maximum 10 files allowed per upload")
+    
     allowed_types = ["image/jpeg", "image/png", "image/gif", "application/pdf"]
-    if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail="File must be an image or PDF")
-    
-    # Read file content
-    file_content = await file.read()
-    file_base64 = base64.b64encode(file_content).decode()
-    
-    # Extract reference and amount from file
-    if file.content_type == "application/pdf":
-        extracted = extract_from_proof_pdf(file_content)
-    else:
-        extracted = extract_from_proof_image(file_content)
-    
-    if not extracted["reference"] and not extracted["amount"]:
-        raise HTTPException(
-            status_code=400, 
-            detail="Could not extract reference or amount from file. Please ensure the proof of payment is clear and readable."
-        )
     
     # Get distributor info
     distributor = await db.distributors.find_one({"id": dist_info["distributor_id"]}, {"_id": 0})
     
-    proof_doc = {
-        "id": str(uuid.uuid4()),
-        "distributor_id": dist_info["distributor_id"],
-        "distributor_name": distributor["name"] if distributor else "Unknown",
-        "reference": extracted["reference"] or "UNKNOWN",
-        "amount": extracted["amount"] or 0.0,
-        "customer_phone": customer_phone,
-        "notes": notes,
-        "file_type": file.content_type,
-        "file_name": file.filename,
-        "file_data": file_base64,
-        "status": "pending",
-        "matched_at": None,
-        "extracted_text": extracted.get("raw_text", "")[:200],
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
+    results = []
+    successful = 0
+    failed = 0
     
-    await db.proofs_of_payment.insert_one(proof_doc)
+    for file in files:
+        try:
+            # Validate file type
+            if file.content_type not in allowed_types:
+                results.append({
+                    "file_name": file.filename,
+                    "success": False,
+                    "error": "Invalid file type. Must be image or PDF"
+                })
+                failed += 1
+                continue
+            
+            # Read file content
+            file_content = await file.read()
+            file_base64 = base64.b64encode(file_content).decode()
+            
+            # Extract reference and amount from file
+            if file.content_type == "application/pdf":
+                extracted = extract_from_proof_pdf(file_content)
+            else:
+                extracted = extract_from_proof_image(file_content)
+            
+            if not extracted["reference"] and not extracted["amount"]:
+                results.append({
+                    "file_name": file.filename,
+                    "success": False,
+                    "error": "Could not extract reference or amount from file"
+                })
+                failed += 1
+                continue
+            
+            proof_doc = {
+                "id": str(uuid.uuid4()),
+                "distributor_id": dist_info["distributor_id"],
+                "distributor_name": distributor["name"] if distributor else "Unknown",
+                "reference": extracted["reference"] or "UNKNOWN",
+                "amount": extracted["amount"] or 0.0,
+                "customer_phone": customer_phone,
+                "notes": notes,
+                "file_type": file.content_type,
+                "file_name": file.filename,
+                "file_data": file_base64,
+                "status": "pending",
+                "matched_at": None,
+                "extracted_text": extracted.get("raw_text", "")[:200],
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await db.proofs_of_payment.insert_one(proof_doc)
+            
+            results.append({
+                "file_name": file.filename,
+                "success": True,
+                "proof_id": proof_doc["id"],
+                "extracted_reference": extracted["reference"],
+                "extracted_amount": extracted["amount"],
+                "commission": round((extracted["amount"] or 0) * COMMISSION_RATE, 2)
+            })
+            successful += 1
+            
+        except Exception as e:
+            logger.error(f"Error processing file {file.filename}: {str(e)}")
+            results.append({
+                "file_name": file.filename,
+                "success": False,
+                "error": "Processing error"
+            })
+            failed += 1
     
     return {
-        "message": "Proof of payment uploaded successfully",
-        "proof_id": proof_doc["id"],
-        "extracted_reference": extracted["reference"],
-        "extracted_amount": extracted["amount"],
-        "status": "pending"
+        "message": f"Processed {len(files)} files: {successful} successful, {failed} failed",
+        "successful": successful,
+        "failed": failed,
+        "results": results
     }
 
 @api_router.get("/distributor/proofs")
