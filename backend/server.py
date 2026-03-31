@@ -37,6 +37,24 @@ PAYFAST_PASSPHRASE = os.environ.get('PAYFAST_PASSPHRASE', '')
 PAYFAST_SANDBOX_MODE = os.environ.get('PAYFAST_SANDBOX_MODE', 'false').lower() == 'true'
 PAYFAST_URL = "https://sandbox.payfast.co.za" if PAYFAST_SANDBOX_MODE else "https://www.payfast.co.za"
 
+# Read the app base URL for PayFast return/notify URLs
+def get_base_url():
+    """Get the public base URL for callbacks"""
+    val = os.environ.get('REACT_APP_BACKEND_URL', '')
+    if val:
+        return val
+    # Fallback: read from frontend .env
+    try:
+        fe_env = Path(__file__).parent.parent / 'frontend' / '.env'
+        for line in fe_env.read_text().splitlines():
+            if line.startswith('REACT_APP_BACKEND_URL='):
+                return line.split('=', 1)[1].strip()
+    except Exception:
+        pass
+    return ''
+
+APP_BASE_URL = get_base_url()
+
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -1916,7 +1934,7 @@ async def initiate_payment(data: PaymentInitiateRequest):
     else:
         phone_intl = phone
     
-    base_url = os.environ.get('REACT_APP_BACKEND_URL', 'https://reminder-blast-1.preview.emergentagent.com')
+    base_url = APP_BASE_URL
     
     payment_doc = {
         "id": order_id,
@@ -2326,7 +2344,7 @@ async def portal_payment_initiate(data: dict, user: dict = Depends(verify_portal
     else:
         phone_intl = phone
     
-    base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+    base_url = APP_BASE_URL
     
     plan_labels = {
         "1_day": "1 Day Pass (R10)", "1dev_1week": "1 Device 1 Week (R60)",
@@ -2388,7 +2406,7 @@ async def portal_referral(user: dict = Depends(verify_portal_token)):
         {"_id": 0, "name": 1, "created_at": 1}
     ).to_list(100)
     
-    base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+    base_url = APP_BASE_URL
     
     return {
         "referral_code": customer.get("referral_code", ""),
