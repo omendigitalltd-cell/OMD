@@ -602,7 +602,8 @@ async def send_manychat_message(phone_number: str, message: str, channel: str = 
                             }
                         ]
                     }
-                }
+                },
+                "message_tag": "ACCOUNT_UPDATE"
             }
             
             response = await http_client.post(
@@ -630,7 +631,7 @@ async def send_manychat_message(phone_number: str, message: str, channel: str = 
 async def get_or_create_manychat_subscriber(client: httpx.AsyncClient, headers: dict, phone_number: str) -> Optional[int]:
     """Get existing subscriber or create new one in ManyChat"""
     try:
-        # Clean phone number - ensure it has country code
+        # Clean phone number - ensure correct format
         clean_phone = phone_number.strip()
         if not clean_phone.startswith('+'):
             if clean_phone.startswith('0'):
@@ -638,10 +639,13 @@ async def get_or_create_manychat_subscriber(client: httpx.AsyncClient, headers: 
             else:
                 clean_phone = '+' + clean_phone
         
-        # Try to find subscriber by WhatsApp phone
+        # ManyChat expects phone without + for lookups
+        phone_no_plus = clean_phone.lstrip('+')
+        
+        # Try to find subscriber by WhatsApp phone (without +)
         find_response = await client.get(
             f"{MANYCHAT_BASE_URL}/fb/subscriber/findBySystemField",
-            params={"field": "whatsapp_phone", "value": clean_phone},
+            params={"field": "whatsapp_phone", "value": phone_no_plus},
             headers=headers,
             timeout=10.0
         )
@@ -656,7 +660,7 @@ async def get_or_create_manychat_subscriber(client: httpx.AsyncClient, headers: 
         # Try phone field
         find_phone_response = await client.get(
             f"{MANYCHAT_BASE_URL}/fb/subscriber/findBySystemField",
-            params={"field": "phone", "value": clean_phone},
+            params={"field": "phone", "value": phone_no_plus},
             headers=headers,
             timeout=10.0
         )
@@ -670,8 +674,8 @@ async def get_or_create_manychat_subscriber(client: httpx.AsyncClient, headers: 
         
         # Create new subscriber with consent_phrase (required by ManyChat)
         create_payload = {
-            "phone": clean_phone,
-            "whatsapp_phone": clean_phone,
+            "phone": phone_no_plus,
+            "whatsapp_phone": phone_no_plus,
             "consent_phrase": "I agree",
             "has_opt_in_sms": True,
             "has_opt_in_email": True
@@ -690,6 +694,23 @@ async def get_or_create_manychat_subscriber(client: httpx.AsyncClient, headers: 
                 subscriber_id = data["data"].get("id")
                 if subscriber_id:
                     return subscriber_id
+        
+        # Handle "already exists" - try to extract subscriber from error
+        if create_response.status_code == 400:
+            err_data = create_response.json()
+            err_msg = str(err_data)
+            if "already exists" in err_msg:
+                # Subscriber exists but findBySystemField failed - try with + prefix
+                retry = await client.get(
+                    f"{MANYCHAT_BASE_URL}/fb/subscriber/findBySystemField",
+                    params={"field": "whatsapp_phone", "value": clean_phone},
+                    headers=headers,
+                    timeout=10.0
+                )
+                if retry.status_code == 200:
+                    data = retry.json()
+                    if data.get("status") == "success" and data.get("data"):
+                        return data["data"].get("id")
         
         logger.error(f"Failed to create subscriber: {create_response.text}")
         return None
