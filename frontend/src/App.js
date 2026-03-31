@@ -7,6 +7,10 @@ import Calculator from "./pages/Calculator";
 import Reminders from "./pages/Reminders";
 import Settings from "./pages/Settings";
 import Commissions from "./pages/Commissions";
+import Vouchers from "./pages/Vouchers";
+import PaymentPage from "./pages/PaymentPage";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentCancel from "./pages/PaymentCancel";
 import DistributorLogin from "./pages/DistributorLogin";
 import DistributorDashboard from "./pages/DistributorDashboard";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -83,6 +87,19 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/vouchers"
+        element={
+          <ProtectedRoute>
+            <Vouchers />
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* Public Payment Routes */}
+      <Route path="/pay" element={<PaymentPage />} />
+      <Route path="/payment/success" element={<PaymentSuccess />} />
+      <Route path="/payment/cancel" element={<PaymentCancel />} />
       
       {/* Distributor Routes */}
       <Route

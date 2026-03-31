@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -20,6 +20,8 @@ import io
 import pytesseract
 from PIL import Image
 import httpx
+from hashlib import md5
+import urllib.parse
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -27,6 +29,13 @@ load_dotenv(ROOT_DIR / '.env')
 # ManyChat API Configuration (must be after load_dotenv)
 MANYCHAT_API_KEY = os.environ.get('MANYCHAT_API_KEY', '')
 MANYCHAT_BASE_URL = "https://api.manychat.com"
+
+# PayFast Configuration
+PAYFAST_MERCHANT_ID = os.environ.get('PAYFAST_MERCHANT_ID', '')
+PAYFAST_MERCHANT_KEY = os.environ.get('PAYFAST_MERCHANT_KEY', '')
+PAYFAST_PASSPHRASE = os.environ.get('PAYFAST_PASSPHRASE', '')
+PAYFAST_SANDBOX_MODE = os.environ.get('PAYFAST_SANDBOX_MODE', 'false').lower() == 'true'
+PAYFAST_URL = "https://sandbox.payfast.co.za" if PAYFAST_SANDBOX_MODE else "https://www.payfast.co.za"
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -391,6 +400,47 @@ def parse_bank_statement_pdf(pdf_content: bytes) -> List[dict]:
     return entries
 
 COMMISSION_RATE = 0.20  # 20% commission
+
+# ==================== PAYFAST HELPERS ====================
+
+PAYFAST_SIGNATURE_FIELDS = [
+    "merchant_id", "merchant_key", "return_url", "cancel_url", "notify_url",
+    "name_first", "name_last", "email_address", "cell_number",
+    "m_payment_id", "amount", "item_name", "item_description",
+    "custom_str1", "custom_str2", "custom_str3", "custom_str4", "custom_str5",
+    "custom_int1", "custom_int2", "custom_int3", "custom_int4", "custom_int5",
+    "email_confirmation", "confirmation_address", "payment_method",
+]
+
+def generate_payfast_signature(data: dict) -> str:
+    """Generate MD5 signature for PayFast transaction"""
+    params = []
+    for field in PAYFAST_SIGNATURE_FIELDS:
+        if field in data and data[field] is not None and str(data[field]).strip() != "":
+            params.append(f"{field}={urllib.parse.quote_plus(str(data[field]).strip())}")
+    
+    signature_string = "&".join(params)
+    if PAYFAST_PASSPHRASE:
+        signature_string += f"&passphrase={urllib.parse.quote_plus(PAYFAST_PASSPHRASE)}"
+    
+    return md5(signature_string.encode()).hexdigest()
+
+def validate_payfast_signature(itn_data: dict) -> bool:
+    """Validate ITN callback signature from PayFast"""
+    received_sig = itn_data.get("signature", "")
+    data_without_sig = {k: v for k, v in itn_data.items() if k != "signature"}
+    
+    params = []
+    for key, value in data_without_sig.items():
+        if value is not None and str(value).strip() != "":
+            params.append(f"{key}={urllib.parse.quote_plus(str(value).strip())}")
+    
+    sig_string = "&".join(params)
+    if PAYFAST_PASSPHRASE:
+        sig_string += f"&passphrase={urllib.parse.quote_plus(PAYFAST_PASSPHRASE)}"
+    
+    expected_sig = md5(sig_string.encode()).hexdigest()
+    return expected_sig == received_sig
 
 # ==================== MANYCHAT FUNCTIONS ====================
 
@@ -1609,6 +1659,265 @@ async def get_messaging_status(email: str = Depends(verify_token)):
         "api_key_set": is_configured,
         "channels_available": ["whatsapp", "sms"] if is_configured else []
     }
+
+# ==================== VOUCHER POOL MANAGEMENT (ADMIN) ====================
+
+class VoucherPoolEntry(BaseModel):
+    code: str
+    plan: str  # "3_devices" or "4_devices"
+
+class VoucherBulkAdd(BaseModel):
+    codes: List[str]
+    plan: str
+
+@api_router.post("/vouchers/add")
+async def add_voucher_codes(data: VoucherBulkAdd, email: str = Depends(verify_token)):
+    """Admin: Add voucher codes to the pool"""
+    if data.plan not in PLAN_RATES:
+        raise HTTPException(status_code=400, detail="Plan must be '3_devices' or '4_devices'")
+    
+    added = 0
+    duplicates = 0
+    for code in data.codes:
+        code = code.strip()
+        if not code:
+            continue
+        existing = await db.voucher_pool.find_one({"code": code})
+        if existing:
+            duplicates += 1
+            continue
+        await db.voucher_pool.insert_one({
+            "id": str(uuid.uuid4()),
+            "code": code,
+            "plan": data.plan,
+            "assigned": False,
+            "assigned_to": None,
+            "assigned_at": None,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        added += 1
+    
+    return {"message": f"Added {added} voucher codes ({duplicates} duplicates skipped)", "added": added, "duplicates": duplicates}
+
+@api_router.get("/vouchers")
+async def get_voucher_pool(email: str = Depends(verify_token)):
+    """Admin: Get all voucher codes in the pool"""
+    vouchers = await db.voucher_pool.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return vouchers
+
+@api_router.delete("/vouchers/{voucher_id}")
+async def delete_voucher(voucher_id: str, email: str = Depends(verify_token)):
+    """Admin: Delete an unassigned voucher code"""
+    voucher = await db.voucher_pool.find_one({"id": voucher_id})
+    if not voucher:
+        raise HTTPException(status_code=404, detail="Voucher not found")
+    if voucher.get("assigned"):
+        raise HTTPException(status_code=400, detail="Cannot delete assigned voucher")
+    await db.voucher_pool.delete_one({"id": voucher_id})
+    return {"message": "Voucher deleted"}
+
+@api_router.get("/vouchers/stats")
+async def get_voucher_stats(email: str = Depends(verify_token)):
+    """Admin: Get voucher pool stats"""
+    total_3 = await db.voucher_pool.count_documents({"plan": "3_devices"})
+    available_3 = await db.voucher_pool.count_documents({"plan": "3_devices", "assigned": False})
+    total_4 = await db.voucher_pool.count_documents({"plan": "4_devices"})
+    available_4 = await db.voucher_pool.count_documents({"plan": "4_devices", "assigned": False})
+    return {
+        "3_devices": {"total": total_3, "available": available_3, "assigned": total_3 - available_3},
+        "4_devices": {"total": total_4, "available": available_4, "assigned": total_4 - available_4}
+    }
+
+# ==================== PAYFAST PAYMENT ROUTES (PUBLIC) ====================
+
+class PaymentInitiateRequest(BaseModel):
+    plan: str  # "3_devices" or "4_devices"
+    customer_name: str
+    customer_phone: str
+    customer_email: Optional[str] = None
+
+@api_router.post("/payment/initiate")
+async def initiate_payment(data: PaymentInitiateRequest):
+    """Public: Initiate a PayFast payment for a WiFi plan"""
+    if data.plan not in PLAN_RATES:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    
+    amount = PLAN_RATES[data.plan]
+    plan_label = "3 Devices (R200)" if data.plan == "3_devices" else "4 Devices (R300)"
+    
+    # Check if voucher codes are available
+    available = await db.voucher_pool.find_one({"plan": data.plan, "assigned": False})
+    if not available:
+        raise HTTPException(status_code=400, detail="No voucher codes available for this plan. Please contact support.")
+    
+    # Create payment record
+    order_id = f"WF-{uuid.uuid4().hex[:10].upper()}"
+    
+    # Clean phone number
+    phone = data.customer_phone.strip()
+    if phone.startswith('0'):
+        phone_intl = '27' + phone[1:]
+    elif phone.startswith('+27'):
+        phone_intl = phone[1:]
+    elif phone.startswith('+'):
+        phone_intl = phone[1:]
+    else:
+        phone_intl = phone
+    
+    base_url = os.environ.get('REACT_APP_BACKEND_URL', 'https://reminder-blast-1.preview.emergentagent.com')
+    
+    payment_doc = {
+        "id": order_id,
+        "plan": data.plan,
+        "amount": amount,
+        "customer_name": data.customer_name,
+        "customer_phone": data.customer_phone,
+        "customer_email": data.customer_email or "",
+        "status": "pending",
+        "voucher_code": None,
+        "pf_payment_id": None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.payments.insert_one(payment_doc)
+    
+    # Build PayFast form data
+    form_data = {
+        "merchant_id": PAYFAST_MERCHANT_ID,
+        "merchant_key": PAYFAST_MERCHANT_KEY,
+        "return_url": f"{base_url}/payment/success?order_id={order_id}",
+        "cancel_url": f"{base_url}/payment/cancel",
+        "notify_url": f"{base_url}/api/payment/notify",
+        "name_first": data.customer_name.split()[0] if data.customer_name else "Customer",
+        "email_address": data.customer_email or "customer@wifi.co.za",
+        "cell_number": phone_intl,
+        "m_payment_id": order_id,
+        "amount": f"{amount:.2f}",
+        "item_name": f"WiFi Plan - {plan_label}",
+        "item_description": f"WiFi Hotspot {plan_label} Monthly",
+        "custom_str1": order_id,
+        "custom_str2": data.plan,
+    }
+    
+    # Generate signature
+    signature = generate_payfast_signature(form_data)
+    form_data["signature"] = signature
+    
+    return {
+        "order_id": order_id,
+        "payfast_url": f"{PAYFAST_URL}/eng/process",
+        "form_fields": form_data
+    }
+
+@api_router.post("/payment/notify")
+async def payfast_itn_callback(request: Request):
+    """PayFast ITN callback - receives payment notification"""
+    try:
+        form = await request.form()
+        itn_data = dict(form)
+        
+        logger.info(f"PayFast ITN received: {itn_data}")
+        
+        # Validate signature
+        if not validate_payfast_signature(itn_data):
+            logger.error("PayFast ITN: Invalid signature")
+            return {"success": False, "error": "Invalid signature"}
+        
+        order_id = itn_data.get("custom_str1") or itn_data.get("m_payment_id")
+        payment_status = itn_data.get("payment_status")
+        pf_payment_id = itn_data.get("pf_payment_id")
+        amount_gross = float(itn_data.get("amount_gross", 0))
+        
+        # Find payment record
+        payment = await db.payments.find_one({"id": order_id})
+        if not payment:
+            logger.error(f"PayFast ITN: Payment {order_id} not found")
+            return {"success": False, "error": "Payment not found"}
+        
+        # Validate amount
+        if abs(payment["amount"] - amount_gross) > 1.0:
+            logger.error(f"PayFast ITN: Amount mismatch {payment['amount']} vs {amount_gross}")
+            return {"success": False, "error": "Amount mismatch"}
+        
+        if payment_status == "COMPLETE" and payment["status"] != "complete":
+            # Assign a voucher code from the pool
+            plan = itn_data.get("custom_str2") or payment["plan"]
+            voucher = await db.voucher_pool.find_one_and_update(
+                {"plan": plan, "assigned": False},
+                {"$set": {
+                    "assigned": True,
+                    "assigned_to": order_id,
+                    "assigned_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            
+            voucher_code = voucher["code"] if voucher else "CONTACT-SUPPORT"
+            
+            # Update payment record
+            await db.payments.update_one(
+                {"id": order_id},
+                {"$set": {
+                    "status": "complete",
+                    "pf_payment_id": pf_payment_id,
+                    "voucher_code": voucher_code,
+                    "completed_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            
+            # Try to send voucher via ManyChat
+            if MANYCHAT_API_KEY and payment.get("customer_phone"):
+                try:
+                    await send_voucher_code_manychat(
+                        payment["customer_name"],
+                        payment["customer_phone"],
+                        voucher_code,
+                        plan,
+                        "whatsapp"
+                    )
+                    logger.info(f"Voucher sent via ManyChat to {payment['customer_phone']}")
+                except Exception as mc_err:
+                    logger.error(f"ManyChat send failed: {mc_err}")
+            
+            logger.info(f"Payment {order_id} completed. Voucher: {voucher_code}")
+        
+        elif payment_status == "FAILED":
+            await db.payments.update_one(
+                {"id": order_id},
+                {"$set": {"status": "failed", "pf_payment_id": pf_payment_id}}
+            )
+        elif payment_status == "CANCELLED":
+            await db.payments.update_one(
+                {"id": order_id},
+                {"$set": {"status": "cancelled"}}
+            )
+        
+        return {"success": True}
+    
+    except Exception as e:
+        logger.error(f"PayFast ITN error: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+@api_router.get("/payment/verify/{order_id}")
+async def verify_payment(order_id: str):
+    """Public: Verify payment status and get voucher code"""
+    payment = await db.payments.find_one({"id": order_id}, {"_id": 0})
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    
+    return {
+        "order_id": payment["id"],
+        "status": payment["status"],
+        "plan": payment["plan"],
+        "amount": payment["amount"],
+        "customer_name": payment["customer_name"],
+        "voucher_code": payment.get("voucher_code"),
+        "completed_at": payment.get("completed_at")
+    }
+
+@api_router.get("/admin/payments")
+async def get_all_payments(email: str = Depends(verify_token)):
+    """Admin: Get all payment records"""
+    payments = await db.payments.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return payments
 
 # ==================== ROOT ====================
 

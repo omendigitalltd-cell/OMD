@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   DollarSign,
+  Ticket,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
@@ -20,6 +21,7 @@ const navItems = [
   { path: "/customers", label: "Customers", icon: Users },
   { path: "/calculator", label: "Pro-rata Calculator", icon: Calculator },
   { path: "/commissions", label: "Commissions", icon: DollarSign },
+  { path: "/vouchers", label: "Vouchers", icon: Ticket },
   { path: "/reminders", label: "Reminders", icon: MessageSquare },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
