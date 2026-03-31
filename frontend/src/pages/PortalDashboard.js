@@ -109,13 +109,25 @@ export default function PortalDashboard() {
               <div className="space-y-2">
                 {purchases.slice(0, 5).map((p) => (
                   <div key={p.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{p.plan}</p>
-                      <p className="text-xs text-slate-400">{new Date(p.created_at).toLocaleDateString()}</p>
+                    <div className="flex items-center gap-2">
+                      {p.status === "complete" ? (
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                      ) : p.status === "pending" ? (
+                        <div className="w-2 h-2 rounded-full bg-amber-400" />
+                      ) : (
+                        <div className="w-2 h-2 rounded-full bg-red-400" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{p.plan}</p>
+                        <p className="text-xs text-slate-400">{new Date(p.created_at).toLocaleDateString()}</p>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-slate-800">{p.amount > 0 ? `R${p.amount}` : "Free (Redeemed)"}</p>
-                      {p.voucher_code && <p className="text-xs font-mono text-emerald-600">{p.voucher_code}</p>}
+                      {p.status === "complete" && p.voucher_code && <p className="text-xs font-mono text-emerald-600">{p.voucher_code}</p>}
+                      {p.status === "pending" && <p className="text-xs text-amber-500">Pending</p>}
+                      {p.status === "failed" && <p className="text-xs text-red-500">Failed</p>}
+                      {p.status === "cancelled" && <p className="text-xs text-red-500">Cancelled</p>}
                     </div>
                   </div>
                 ))}
