@@ -163,6 +163,20 @@ class DashboardStats(BaseModel):
 
 # ==================== DISTRIBUTOR MODELS ====================
 
+# ==================== PORTAL CUSTOMER MODELS ====================
+
+class PortalCustomerRegister(BaseModel):
+    name: str
+    phone: str
+    password: str
+    referral_code: Optional[str] = None
+
+class PortalCustomerLogin(BaseModel):
+    phone: str
+    password: str
+
+# ==================== DISTRIBUTOR MODELS ====================
+
 class DistributorCreate(BaseModel):
     name: str
     email: str
@@ -321,6 +335,49 @@ async def verify_distributor_token(credentials: HTTPAuthorizationCredentials = D
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+# Portal customer auth helpers
+def create_portal_token(phone: str, customer_id: str) -> str:
+    expiration = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+    payload = {
+        "sub": phone,
+        "customer_id": customer_id,
+        "role": "portal_customer",
+        "exp": expiration,
+        "iat": datetime.now(timezone.utc)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+async def verify_portal_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("role") != "portal_customer":
+            raise HTTPException(status_code=401, detail="Invalid portal token")
+        return {
+            "phone": payload.get("sub"),
+            "customer_id": payload.get("customer_id")
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+# Reward tiers: points needed to redeem a free voucher
+REWARD_TIERS = {
+    "1_day": 10,
+    "1dev_1week": 50,
+    "1dev_2weeks": 80,
+    "1dev_3weeks": 100,
+    "1dev_4weeks": 130,
+    "2dev_1week": 80,
+    "2dev_2weeks": 120,
+    "2dev_3weeks": 160,
+    "2dev_4weeks": 190,
+    "3_devices": 180,
+    "4_devices": 270,
+}
+
+REFERRAL_BONUS_POINTS = 5
 
 def parse_bank_statement_pdf(pdf_content: bytes) -> List[dict]:
     """Parse bank statement PDF and extract transactions"""
@@ -1980,6 +2037,24 @@ async def payfast_itn_callback(request: Request):
                     logger.error(f"ManyChat send failed: {mc_err}")
             
             logger.info(f"Payment {order_id} completed. Voucher: {voucher_code}")
+            
+            # Award loyalty points to portal customer (1 point per R10)
+            if payment.get("portal_customer_id"):
+                points_earned = int(amount_gross / 10)
+                if points_earned > 0:
+                    await db.portal_customers.update_one(
+                        {"id": payment["portal_customer_id"]},
+                        {"$inc": {"points": points_earned}}
+                    )
+                    await db.points_history.insert_one({
+                        "id": str(uuid.uuid4()),
+                        "customer_id": payment["portal_customer_id"],
+                        "points": points_earned,
+                        "type": "earned",
+                        "description": f"Purchase: {plan} (R{amount_gross})",
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    })
+                    logger.info(f"Awarded {points_earned} points to portal customer {payment['portal_customer_id']}")
         
         elif payment_status == "FAILED":
             await db.payments.update_one(
@@ -2020,6 +2095,308 @@ async def get_all_payments(email: str = Depends(verify_token)):
     """Admin: Get all payment records"""
     payments = await db.payments.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
     return payments
+
+# ==================== CUSTOMER PORTAL ROUTES ====================
+
+@api_router.post("/portal/register")
+async def portal_register(data: PortalCustomerRegister):
+    """Public: Register a new portal customer"""
+    existing = await db.portal_customers.find_one({"phone": data.phone})
+    if existing:
+        raise HTTPException(status_code=400, detail="Phone number already registered")
+    
+    customer_id = str(uuid.uuid4())
+    referral_code = f"REF-{uuid.uuid4().hex[:6].upper()}"
+    
+    doc = {
+        "id": customer_id,
+        "name": data.name.strip(),
+        "phone": data.phone.strip(),
+        "password_hash": bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode(),
+        "points": 0,
+        "referral_code": referral_code,
+        "referred_by": None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Handle referral
+    if data.referral_code and data.referral_code.strip():
+        referrer = await db.portal_customers.find_one({"referral_code": data.referral_code.strip().upper()})
+        if referrer:
+            doc["referred_by"] = referrer["id"]
+            # Award bonus points to referrer
+            await db.portal_customers.update_one(
+                {"id": referrer["id"]},
+                {"$inc": {"points": REFERRAL_BONUS_POINTS}}
+            )
+            await db.points_history.insert_one({
+                "id": str(uuid.uuid4()),
+                "customer_id": referrer["id"],
+                "points": REFERRAL_BONUS_POINTS,
+                "type": "referral_bonus",
+                "description": f"Referral bonus: {data.name.strip()} joined",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+            # Award bonus to new customer too
+            doc["points"] = REFERRAL_BONUS_POINTS
+    
+    await db.portal_customers.insert_one(doc)
+    
+    # Log referral bonus for new customer if applicable
+    if doc["points"] > 0:
+        await db.points_history.insert_one({
+            "id": str(uuid.uuid4()),
+            "customer_id": customer_id,
+            "points": REFERRAL_BONUS_POINTS,
+            "type": "referral_bonus",
+            "description": "Welcome bonus: joined via referral",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    token = create_portal_token(data.phone.strip(), customer_id)
+    return {"access_token": token, "token_type": "bearer", "customer_id": customer_id}
+
+@api_router.post("/portal/login")
+async def portal_login(data: PortalCustomerLogin):
+    """Public: Login as portal customer"""
+    customer = await db.portal_customers.find_one({"phone": data.phone.strip()})
+    if not customer:
+        raise HTTPException(status_code=401, detail="Invalid phone or password")
+    if not bcrypt.checkpw(data.password.encode(), customer["password_hash"].encode()):
+        raise HTTPException(status_code=401, detail="Invalid phone or password")
+    
+    token = create_portal_token(customer["phone"], customer["id"])
+    return {"access_token": token, "token_type": "bearer", "customer_id": customer["id"]}
+
+@api_router.get("/portal/profile")
+async def portal_profile(user: dict = Depends(verify_portal_token)):
+    """Portal: Get customer profile"""
+    customer = await db.portal_customers.find_one({"id": user["customer_id"]}, {"_id": 0, "password_hash": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Count referrals
+    referral_count = await db.portal_customers.count_documents({"referred_by": user["customer_id"]})
+    customer["referral_count"] = referral_count
+    return customer
+
+@api_router.get("/portal/purchases")
+async def portal_purchases(user: dict = Depends(verify_portal_token)):
+    """Portal: Get purchase history"""
+    purchases = await db.payments.find(
+        {"portal_customer_id": user["customer_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return purchases
+
+@api_router.get("/portal/points")
+async def portal_points(user: dict = Depends(verify_portal_token)):
+    """Portal: Get points balance and history"""
+    customer = await db.portal_customers.find_one({"id": user["customer_id"]}, {"_id": 0})
+    history = await db.points_history.find(
+        {"customer_id": user["customer_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return {"balance": customer.get("points", 0), "history": history}
+
+@api_router.get("/portal/rewards")
+async def portal_rewards(user: dict = Depends(verify_portal_token)):
+    """Portal: Get available reward tiers"""
+    customer = await db.portal_customers.find_one({"id": user["customer_id"]}, {"_id": 0})
+    balance = customer.get("points", 0)
+    
+    plan_labels = {
+        "1_day": "1 Day Pass",
+        "1dev_1week": "1 Device 1 Week",
+        "1dev_2weeks": "1 Device 2 Weeks",
+        "1dev_3weeks": "1 Device 3 Weeks",
+        "1dev_4weeks": "1 Device 4 Weeks",
+        "2dev_1week": "2 Devices 1 Week",
+        "2dev_2weeks": "2 Devices 2 Weeks",
+        "2dev_3weeks": "2 Devices 3 Weeks",
+        "2dev_4weeks": "2 Devices 4 Weeks",
+        "3_devices": "3 Devices Monthly",
+        "4_devices": "4 Devices Monthly",
+    }
+    
+    tiers = []
+    for plan, pts_needed in REWARD_TIERS.items():
+        tiers.append({
+            "plan": plan,
+            "label": plan_labels.get(plan, plan),
+            "points_needed": pts_needed,
+            "value": PLAN_RATES.get(plan, 0),
+            "can_redeem": balance >= pts_needed
+        })
+    
+    return {"balance": balance, "tiers": tiers}
+
+@api_router.post("/portal/redeem")
+async def portal_redeem(data: dict, user: dict = Depends(verify_portal_token)):
+    """Portal: Redeem points for a free voucher"""
+    plan = data.get("plan")
+    if plan not in REWARD_TIERS:
+        raise HTTPException(status_code=400, detail="Invalid reward plan")
+    
+    pts_needed = REWARD_TIERS[plan]
+    customer = await db.portal_customers.find_one({"id": user["customer_id"]})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    if customer.get("points", 0) < pts_needed:
+        raise HTTPException(status_code=400, detail=f"Not enough points. Need {pts_needed}, have {customer.get('points', 0)}")
+    
+    # Find available voucher
+    voucher = await db.voucher_pool.find_one_and_update(
+        {"plan": plan, "assigned": False},
+        {"$set": {
+            "assigned": True,
+            "assigned_to": f"REDEEM-{user['customer_id'][:8]}",
+            "assigned_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    if not voucher:
+        raise HTTPException(status_code=400, detail="No voucher codes available for this plan. Contact support.")
+    
+    # Deduct points
+    await db.portal_customers.update_one(
+        {"id": user["customer_id"]},
+        {"$inc": {"points": -pts_needed}}
+    )
+    
+    # Log points deduction
+    await db.points_history.insert_one({
+        "id": str(uuid.uuid4()),
+        "customer_id": user["customer_id"],
+        "points": -pts_needed,
+        "type": "redeemed",
+        "description": f"Redeemed for {plan}",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Create payment record for the redemption
+    order_id = f"RDM-{uuid.uuid4().hex[:10].upper()}"
+    await db.payments.insert_one({
+        "id": order_id,
+        "plan": plan,
+        "amount": 0,
+        "customer_name": customer["name"],
+        "customer_phone": customer["phone"],
+        "customer_email": "",
+        "portal_customer_id": user["customer_id"],
+        "status": "complete",
+        "voucher_code": voucher["code"],
+        "pf_payment_id": None,
+        "payment_type": "redemption",
+        "points_used": pts_needed,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {"voucher_code": voucher["code"], "points_used": pts_needed, "points_remaining": customer.get("points", 0) - pts_needed}
+
+@api_router.post("/portal/payment/initiate")
+async def portal_payment_initiate(data: dict, user: dict = Depends(verify_portal_token)):
+    """Portal: Initiate PayFast payment (authenticated)"""
+    plan = data.get("plan")
+    if plan not in PLAN_RATES:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    
+    customer = await db.portal_customers.find_one({"id": user["customer_id"]}, {"_id": 0, "password_hash": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    amount = PLAN_RATES[plan]
+    
+    # Check voucher availability
+    available = await db.voucher_pool.find_one({"plan": plan, "assigned": False})
+    if not available:
+        raise HTTPException(status_code=400, detail="No voucher codes available for this plan.")
+    
+    order_id = f"WF-{uuid.uuid4().hex[:10].upper()}"
+    
+    phone = customer["phone"].strip()
+    if phone.startswith('0'):
+        phone_intl = '27' + phone[1:]
+    elif phone.startswith('+27'):
+        phone_intl = phone[1:]
+    elif phone.startswith('+'):
+        phone_intl = phone[1:]
+    else:
+        phone_intl = phone
+    
+    base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+    
+    plan_labels = {
+        "1_day": "1 Day Pass (R10)", "1dev_1week": "1 Device 1 Week (R60)",
+        "1dev_2weeks": "1 Device 2 Weeks (R90)", "1dev_3weeks": "1 Device 3 Weeks (R120)",
+        "1dev_4weeks": "1 Device 4 Weeks (R150)", "2dev_1week": "2 Devices 1 Week (R90)",
+        "2dev_2weeks": "2 Devices 2 Weeks (R135)", "2dev_3weeks": "2 Devices 3 Weeks (R180)",
+        "2dev_4weeks": "2 Devices 4 Weeks (R210)", "3_devices": "3 Devices Monthly (R200)",
+        "4_devices": "4 Devices Monthly (R300)", "test": "Test Plan (R10)",
+    }
+    plan_label = plan_labels.get(plan, plan)
+    
+    payment_doc = {
+        "id": order_id,
+        "plan": plan,
+        "amount": amount,
+        "customer_name": customer["name"],
+        "customer_phone": customer["phone"],
+        "customer_email": "",
+        "portal_customer_id": user["customer_id"],
+        "status": "pending",
+        "voucher_code": None,
+        "pf_payment_id": None,
+        "payment_type": "purchase",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.payments.insert_one(payment_doc)
+    
+    form_data = {
+        "merchant_id": PAYFAST_MERCHANT_ID,
+        "merchant_key": PAYFAST_MERCHANT_KEY,
+        "return_url": f"{base_url}/portal/payment/success?order_id={order_id}",
+        "cancel_url": f"{base_url}/portal/payment/cancel",
+        "notify_url": f"{base_url}/api/payment/notify",
+        "name_first": customer["name"].split()[0] if customer["name"] else "Customer",
+        "email_address": "customer@wifi.co.za",
+        "cell_number": phone_intl,
+        "m_payment_id": order_id,
+        "amount": f"{amount:.2f}",
+        "item_name": f"WiFi Plan - {plan_label}",
+        "item_description": f"WiFi Hotspot {plan_label}",
+        "custom_str1": order_id,
+        "custom_str2": plan,
+    }
+    
+    signature = generate_payfast_signature(form_data)
+    form_data["signature"] = signature
+    
+    return {"order_id": order_id, "payfast_url": f"{PAYFAST_URL}/eng/process", "form_fields": form_data}
+
+@api_router.get("/portal/referral")
+async def portal_referral(user: dict = Depends(verify_portal_token)):
+    """Portal: Get referral info"""
+    customer = await db.portal_customers.find_one({"id": user["customer_id"]}, {"_id": 0, "password_hash": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    referrals = await db.portal_customers.find(
+        {"referred_by": user["customer_id"]},
+        {"_id": 0, "name": 1, "created_at": 1}
+    ).to_list(100)
+    
+    base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+    
+    return {
+        "referral_code": customer.get("referral_code", ""),
+        "referral_link": f"{base_url}/portal/register?ref={customer.get('referral_code', '')}",
+        "total_referrals": len(referrals),
+        "points_per_referral": REFERRAL_BONUS_POINTS,
+        "referrals": referrals
+    }
 
 # ==================== ROOT ====================
 
