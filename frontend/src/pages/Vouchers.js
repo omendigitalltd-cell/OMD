@@ -232,16 +232,16 @@ export default function Vouchers() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <Upload className="w-5 h-5 text-violet-600" />
-              Upload CSV
+              Upload CSV / PDF
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
               <div className="space-y-1.5 flex-1">
-                <p className="text-xs text-slate-500">Upload a CSV file with voucher codes in the first column (one code per row). Header row is auto-skipped.</p>
+                <p className="text-xs text-slate-500">Upload a CSV or PDF file with voucher codes (one code per line/row). Header rows are auto-skipped.</p>
                 <input
                   type="file"
-                  accept=".csv,.txt"
+                  accept=".csv,.txt,.pdf"
                   onChange={handleCsvUpload}
                   disabled={uploading}
                   className="block w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 file:cursor-pointer cursor-pointer"

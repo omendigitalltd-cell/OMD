@@ -1830,7 +1830,7 @@ async def add_voucher_codes(data: VoucherBulkAdd, email: str = Depends(verify_to
 
 @api_router.post("/vouchers/upload-csv")
 async def upload_voucher_csv(file: UploadFile = File(...), plan: str = Form(...), accommodation: str = Form(...), email: str = Depends(verify_token)):
-    """Admin: Upload CSV file with voucher codes. CSV should have codes in the first column."""
+    """Admin: Upload CSV or PDF file with voucher codes."""
     if plan not in PLAN_RATES:
         raise HTTPException(status_code=400, detail="Invalid plan")
     if accommodation not in ACCOMMODATIONS:
@@ -1840,17 +1840,36 @@ async def upload_voucher_csv(file: UploadFile = File(...), plan: str = Form(...)
     import io
     
     content = await file.read()
-    text = content.decode("utf-8", errors="ignore")
-    reader = csv.reader(io.StringIO(text))
+    filename = (file.filename or "").lower()
+    
+    # Extract text based on file type
+    if filename.endswith(".pdf"):
+        try:
+            import pdfplumber
+            pdf = pdfplumber.open(io.BytesIO(content))
+            lines = []
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    lines.extend(page_text.strip().splitlines())
+            pdf.close()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to read PDF: {str(e)}")
+    else:
+        text = content.decode("utf-8", errors="ignore")
+        lines = []
+        reader = csv.reader(io.StringIO(text))
+        for row in reader:
+            if row:
+                lines.append(row[0])
     
     added = 0
     duplicates = 0
-    for row in reader:
-        if not row:
+    skip_words = {"code", "voucher", "voucher_code", "voucher code", ""}
+    for line in lines:
+        code = line.strip()
+        if not code or code.lower() in skip_words:
             continue
-        code = row[0].strip()
-        if not code or code.lower() in ("code", "voucher", "voucher_code", "voucher code"):
-            continue  # skip header rows
         existing = await db.voucher_pool.find_one({"code": code})
         if existing:
             duplicates += 1
