@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 class WiFiHotspotAPITester:
-    def __init__(self, base_url: str = "https://voucher-billing-sys.preview.emergentagent.com"):
+    def __init__(self, base_url: str = "https://reminder-blast-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.tests_run = 0
