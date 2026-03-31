@@ -1,72 +1,61 @@
 # WiFi Hotspot Admin System - PRD
 
 ## Original Problem Statement
-Create an admin system for WiFi hotspot business where admin can:
-- Capture customers by phone numbers and voucher codes
-- Send WhatsApp/SMS reminders automatically via ManyChat on last day of month
-- Pro-rata calculation feature for each month of 2026
-- Refund calculator based on remaining days (custom duration rules)
-- Commission management system for distributors (20% commission)
-- Distributor PoP upload with OCR/PDF parsing + Bank Statement matching
-- PayFast payment integration: customers pay online, get voucher code on success page
+WiFi hotspot business admin system with:
+- Customer management, pro-rata/refund calculators
+- ManyChat WhatsApp/SMS reminders
+- Distributor commission management with PoP upload + bank statement matching
+- PayFast payment: customers pay online, get voucher code
+- **Customer Portal**: register/login, buy plans, purchase history, loyalty points (1pt/R10), rewards redemption, referral system (5pts bonus)
 
 ## Plans
-- 3 Devices: R200/month
-- 4 Devices: R300/month
-- Test Plan: R10 (for testing)
+| Plan | Price | Points Earned |
+|------|-------|--------------|
+| 1 Day Pass | R10 | 1 pt |
+| 1 Device 1 Week | R60 | 6 pts |
+| 1 Device 2 Weeks | R90 | 9 pts |
+| 1 Device 3 Weeks | R120 | 12 pts |
+| 1 Device 4 Weeks | R150 | 15 pts |
+| 2 Devices 1 Week | R90 | 9 pts |
+| 2 Devices 2 Weeks | R135 | 13 pts |
+| 2 Devices 3 Weeks | R180 | 18 pts |
+| 2 Devices 4 Weeks | R210 | 21 pts |
+| 3 Devices Monthly | R200 | 20 pts |
+| 4 Devices Monthly | R300 | 30 pts |
 
-## Tech Stack
-- Frontend: React, Tailwind CSS, shadcn/ui
-- Backend: FastAPI, MongoDB, PyJWT
-- OCR: pytesseract, pdfplumber
-- Messaging: ManyChat API
-- Payments: PayFast (live mode)
+## What's Been Implemented (All Complete)
 
-## What's Been Implemented
+### Admin System
+- [x] JWT auth, customer CRUD, dashboard with stats
+- [x] Pro-rata calculator (2026), refund calculator
+- [x] ManyChat WhatsApp/SMS messaging
+- [x] Distributor portal with PoP batch upload (OCR/PDF)
+- [x] Bank statement parsing + PoP matching + 20% commission
+- [x] Voucher pool management (manual + CSV upload)
+- [x] Payment tracking with PayFast
 
-### Core Features (All Complete)
-- [x] Admin JWT authentication
-- [x] Customer CRUD with voucher codes
-- [x] Pro-rata calculator for 2026
-- [x] Refund calculator (1wk=8d, 2wk=15d, 3wk=22d, 4wk=32d)
-- [x] Dashboard with stats
-- [x] ManyChat WhatsApp/SMS messaging (send-reminder, send-voucher, bulk, logs)
-- [x] Distributor portal with PoP batch upload (OCR/PDF extraction)
-- [x] Bank statement parsing + PoP matching + commission calculation (20%)
-- [x] **PayFast payment gateway** - public payment page, ITN webhook, voucher assignment
-- [x] **Admin voucher pool management** - add/delete codes, stats, payment history
-- [x] **Success page shows voucher code after payment** (live tested with R10)
-- [x] **3-layer ITN validation** (signature → server → merchant_id)
+### Customer Portal (`/portal/*`)
+- [x] Register (name + phone + password) with optional referral code
+- [x] Login (phone + password)
+- [x] Dashboard with stats (points, purchases, redeemed, referrals)
+- [x] Buy Plan via PayFast (authenticated)
+- [x] Purchase History (codes, amounts, dates, type)
+- [x] Loyalty Points (1pt per R10 spent, balance + history)
+- [x] Rewards Redemption (11 tiers, progress bars, free voucher on redeem)
+- [x] Referral System (unique code, share link, 5pts bonus each)
+- [x] Payment success/cancel pages within portal
 
-### Pages
-- /login - Admin login
-- / - Dashboard
-- /customers - Customer management
-- /calculator - Pro-rata & refund calculators
-- /commissions - Commission tracking
-- /vouchers - Voucher pool management (admin)
-- /reminders - ManyChat messaging
-- /settings - WhatsApp & reminder config
-- /pay - Public payment page (customer-facing)
-- /payment/success - Voucher display after payment
-- /payment/cancel - Payment cancellation
-- /distributor/login - Distributor login
-- /distributor/dashboard - Distributor PoP uploads
+### Public Pages
+- [x] `/pay` - Public payment page (plan selection + PayFast)
+- [x] `/payment/success` and `/payment/cancel`
 
 ## Prioritized Backlog
-
 ### P1 - Pending
 - [ ] E2E verify bank statement matching with real Capitec files
-- [ ] Handle ManyChat edge cases (invalid phone, rate limits)
+- [ ] Handle ManyChat edge cases
 - [ ] Automatic scheduled reminders (cron on last day of month)
 
 ### P2 - Future
-- [ ] Customer payment history tracking
-- [ ] Export customers to CSV
-- [ ] Monthly revenue reports
-- [ ] Remove test plan before going live
-
-### P3 - Nice to Have
-- [ ] Customer self-service portal
-- [ ] Multiple admin users
-- [ ] Dark mode toggle
+- [ ] Customer payment history export (CSV)
+- [ ] Monthly revenue reports dashboard
+- [ ] Remove test plan before production
