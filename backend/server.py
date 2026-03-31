@@ -1455,6 +1455,149 @@ async def get_commission_payouts(distributor_id: str = None, email: str = Depend
     payouts = await db.commission_payouts.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return payouts
 
+# ==================== MANYCHAT MESSAGING ROUTES ====================
+
+class SendReminderRequest(BaseModel):
+    customer_id: str
+    channel: str = "whatsapp"  # "whatsapp" or "sms"
+
+class SendVoucherRequest(BaseModel):
+    customer_id: str
+    channel: str = "whatsapp"
+
+class BulkReminderRequest(BaseModel):
+    channel: str = "whatsapp"
+
+@api_router.post("/messaging/send-reminder")
+async def send_single_reminder(data: SendReminderRequest, email: str = Depends(verify_token)):
+    """Send payment reminder to a single customer via ManyChat"""
+    customer = await db.customers.find_one({"id": data.customer_id}, {"_id": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    result = await send_payment_reminder_manychat(
+        customer["name"],
+        customer["phone"],
+        get_monthly_rate(customer.get("plan", "3_devices")),
+        customer["voucher_code"],
+        data.channel
+    )
+    
+    # Log the message
+    log_doc = {
+        "id": str(uuid.uuid4()),
+        "customer_id": customer["id"],
+        "customer_name": customer["name"],
+        "customer_phone": customer["phone"],
+        "message_type": "payment_reminder",
+        "channel": data.channel,
+        "status": "sent" if result.get("success") else "failed",
+        "error": result.get("error"),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.message_logs.insert_one(log_doc)
+    
+    if result.get("success"):
+        return {"message": f"Reminder sent to {customer['name']} via {data.channel}", "success": True}
+    else:
+        raise HTTPException(status_code=500, detail=result.get("error", "Failed to send message"))
+
+@api_router.post("/messaging/send-voucher")
+async def send_voucher_to_customer(data: SendVoucherRequest, email: str = Depends(verify_token)):
+    """Send voucher code to a customer via ManyChat"""
+    customer = await db.customers.find_one({"id": data.customer_id}, {"_id": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    result = await send_voucher_code_manychat(
+        customer["name"],
+        customer["phone"],
+        customer["voucher_code"],
+        customer.get("plan", "3_devices"),
+        data.channel
+    )
+    
+    # Log the message
+    log_doc = {
+        "id": str(uuid.uuid4()),
+        "customer_id": customer["id"],
+        "customer_name": customer["name"],
+        "customer_phone": customer["phone"],
+        "message_type": "voucher_code",
+        "channel": data.channel,
+        "status": "sent" if result.get("success") else "failed",
+        "error": result.get("error"),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.message_logs.insert_one(log_doc)
+    
+    if result.get("success"):
+        return {"message": f"Voucher sent to {customer['name']} via {data.channel}", "success": True}
+    else:
+        raise HTTPException(status_code=500, detail=result.get("error", "Failed to send message"))
+
+@api_router.post("/messaging/send-bulk-reminders")
+async def send_bulk_reminders(data: BulkReminderRequest, email: str = Depends(verify_token)):
+    """Send payment reminders to all active customers via ManyChat"""
+    customers = await db.customers.find({"is_active": True}, {"_id": 0}).to_list(1000)
+    
+    sent_count = 0
+    failed_count = 0
+    results = []
+    
+    for customer in customers:
+        result = await send_payment_reminder_manychat(
+            customer["name"],
+            customer["phone"],
+            get_monthly_rate(customer.get("plan", "3_devices")),
+            customer["voucher_code"],
+            data.channel
+        )
+        
+        # Log each message
+        log_doc = {
+            "id": str(uuid.uuid4()),
+            "customer_id": customer["id"],
+            "customer_name": customer["name"],
+            "customer_phone": customer["phone"],
+            "message_type": "payment_reminder",
+            "channel": data.channel,
+            "status": "sent" if result.get("success") else "failed",
+            "error": result.get("error"),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.message_logs.insert_one(log_doc)
+        
+        if result.get("success"):
+            sent_count += 1
+        else:
+            failed_count += 1
+            results.append({"customer": customer["name"], "error": result.get("error")})
+    
+    return {
+        "message": f"Sent {sent_count} reminders, {failed_count} failed",
+        "sent": sent_count,
+        "failed": failed_count,
+        "errors": results[:10]  # Return first 10 errors
+    }
+
+@api_router.get("/messaging/logs")
+async def get_message_logs(email: str = Depends(verify_token)):
+    """Get message delivery logs"""
+    logs = await db.message_logs.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return logs
+
+@api_router.get("/messaging/status")
+async def get_messaging_status(email: str = Depends(verify_token)):
+    """Check ManyChat configuration status"""
+    is_configured = bool(MANYCHAT_API_KEY)
+    return {
+        "manychat_configured": is_configured,
+        "api_key_set": is_configured,
+        "channels_available": ["whatsapp", "sms"] if is_configured else []
+    }
+    return payouts
+
 # ==================== ROOT ====================
 
 @api_router.get("/")
