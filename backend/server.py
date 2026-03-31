@@ -230,6 +230,7 @@ class CommissionSummary(BaseModel):
 PLAN_RATES = {
     "3_devices": 200.0,
     "4_devices": 300.0,
+    "1_day": 10.0,
     "test": 10.0
 }
 
@@ -1758,9 +1759,12 @@ async def get_voucher_stats(email: str = Depends(verify_token)):
     available_3 = await db.voucher_pool.count_documents({"plan": "3_devices", "assigned": False})
     total_4 = await db.voucher_pool.count_documents({"plan": "4_devices"})
     available_4 = await db.voucher_pool.count_documents({"plan": "4_devices", "assigned": False})
+    total_1d = await db.voucher_pool.count_documents({"plan": "1_day"})
+    available_1d = await db.voucher_pool.count_documents({"plan": "1_day", "assigned": False})
     return {
         "3_devices": {"total": total_3, "available": available_3, "assigned": total_3 - available_3},
-        "4_devices": {"total": total_4, "available": available_4, "assigned": total_4 - available_4}
+        "4_devices": {"total": total_4, "available": available_4, "assigned": total_4 - available_4},
+        "1_day": {"total": total_1d, "available": available_1d, "assigned": total_1d - available_1d}
     }
 
 # ==================== PAYFAST PAYMENT ROUTES (PUBLIC) ====================

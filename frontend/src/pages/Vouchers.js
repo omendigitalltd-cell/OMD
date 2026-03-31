@@ -93,6 +93,8 @@ export default function Vouchers() {
               { label: "3-Device Assigned", val: stats["3_devices"]?.assigned || 0, color: "text-violet-400", bg: "bg-violet-50" },
               { label: "4-Device Available", val: stats["4_devices"]?.available || 0, color: "text-orange-600", bg: "bg-orange-50" },
               { label: "4-Device Assigned", val: stats["4_devices"]?.assigned || 0, color: "text-orange-400", bg: "bg-orange-50" },
+              { label: "1-Day Available", val: stats["1_day"]?.available || 0, color: "text-emerald-600", bg: "bg-emerald-50" },
+              { label: "1-Day Assigned", val: stats["1_day"]?.assigned || 0, color: "text-emerald-400", bg: "bg-emerald-50" },
             ].map((s, i) => (
               <Card key={i} className={`${s.bg} border-0`}>
                 <CardContent className="p-4 text-center">
@@ -131,6 +133,7 @@ export default function Vouchers() {
                   <SelectContent>
                     <SelectItem value="3_devices">3 Devices (R200)</SelectItem>
                     <SelectItem value="4_devices">4 Devices (R300)</SelectItem>
+                    <SelectItem value="1_day">1 Day Pass (R10)</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -187,8 +190,8 @@ export default function Vouchers() {
                       <TableRow key={v.id} data-testid={`voucher-row-${v.id}`}>
                         <TableCell className="font-mono font-semibold text-sm">{v.code}</TableCell>
                         <TableCell>
-                          <Badge className={v.plan === "3_devices" ? "bg-violet-100 text-violet-700" : "bg-orange-100 text-orange-700"}>
-                            {v.plan === "3_devices" ? "3 Dev" : "4 Dev"}
+                          <Badge className={v.plan === "3_devices" ? "bg-violet-100 text-violet-700" : v.plan === "4_devices" ? "bg-orange-100 text-orange-700" : "bg-emerald-100 text-emerald-700"}>
+                            {v.plan === "3_devices" ? "3 Dev" : v.plan === "4_devices" ? "4 Dev" : "1 Day"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -248,8 +251,8 @@ export default function Vouchers() {
                         <TableCell className="font-medium">{p.customer_name}</TableCell>
                         <TableCell className="font-mono text-xs">{p.customer_phone}</TableCell>
                         <TableCell>
-                          <Badge className={p.plan === "3_devices" ? "bg-violet-100 text-violet-700" : "bg-orange-100 text-orange-700"}>
-                            {p.plan === "3_devices" ? "3 Dev" : "4 Dev"}
+                          <Badge className={p.plan === "3_devices" ? "bg-violet-100 text-violet-700" : p.plan === "4_devices" ? "bg-orange-100 text-orange-700" : "bg-emerald-100 text-emerald-700"}>
+                            {p.plan === "3_devices" ? "3 Dev" : p.plan === "4_devices" ? "4 Dev" : "1 Day"}
                           </Badge>
                         </TableCell>
                         <TableCell className="font-semibold">R{p.amount}</TableCell>

@@ -9,6 +9,15 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const PLANS = [
   {
+    id: "1_day",
+    name: "1 Day Pass",
+    price: 10,
+    devices: 1,
+    color: "from-emerald-500 to-emerald-400",
+    border: "border-emerald-200 hover:border-emerald-400",
+    badge: "bg-emerald-100 text-emerald-700",
+  },
+  {
     id: "3_devices",
     name: "3 Devices",
     price: 200,
