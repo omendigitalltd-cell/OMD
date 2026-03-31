@@ -392,6 +392,139 @@ def parse_bank_statement_pdf(pdf_content: bytes) -> List[dict]:
 
 COMMISSION_RATE = 0.20  # 20% commission
 
+# ==================== MANYCHAT FUNCTIONS ====================
+
+async def send_manychat_message(phone_number: str, message: str, channel: str = "whatsapp") -> dict:
+    """Send message via ManyChat API"""
+    if not MANYCHAT_API_KEY:
+        logger.error("ManyChat API key not configured")
+        return {"success": False, "error": "ManyChat API key not configured"}
+    
+    headers = {
+        "Authorization": f"Bearer {MANYCHAT_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # First, try to find or create subscriber
+            subscriber_id = await get_or_create_manychat_subscriber(client, headers, phone_number)
+            
+            if not subscriber_id:
+                return {"success": False, "error": "Could not create subscriber"}
+            
+            # Send the message
+            payload = {
+                "subscriber_id": subscriber_id,
+                "data": {
+                    "version": "v2",
+                    "content": {
+                        "messages": [
+                            {
+                                "type": "text",
+                                "text": message
+                            }
+                        ]
+                    }
+                },
+                "message_tag": "ACCOUNT_UPDATE"
+            }
+            
+            response = await client.post(
+                f"{MANYCHAT_BASE_URL}/fb/sending/sendContent",
+                json=payload,
+                headers=headers,
+                timeout=30.0
+            )
+            
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            else:
+                logger.error(f"ManyChat send error: {response.status_code} - {response.text}")
+                return {"success": False, "error": response.text}
+                
+    except Exception as e:
+        logger.error(f"ManyChat API error: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+async def get_or_create_manychat_subscriber(client: httpx.AsyncClient, headers: dict, phone_number: str) -> Optional[int]:
+    """Get existing subscriber or create new one in ManyChat"""
+    try:
+        # Clean phone number - ensure it has country code
+        clean_phone = phone_number.strip()
+        if not clean_phone.startswith('+'):
+            # Assume South African number if no country code
+            if clean_phone.startswith('0'):
+                clean_phone = '+27' + clean_phone[1:]
+            else:
+                clean_phone = '+' + clean_phone
+        
+        # Try to find subscriber by phone
+        find_response = await client.get(
+            f"{MANYCHAT_BASE_URL}/fb/subscriber/findBySystemField",
+            params={"field": "phone", "value": clean_phone},
+            headers=headers,
+            timeout=10.0
+        )
+        
+        if find_response.status_code == 200:
+            data = find_response.json()
+            if data.get("status") == "success" and data.get("data"):
+                return data["data"].get("id")
+        
+        # Try WhatsApp phone field
+        find_wa_response = await client.get(
+            f"{MANYCHAT_BASE_URL}/fb/subscriber/findBySystemField",
+            params={"field": "whatsapp_phone", "value": clean_phone},
+            headers=headers,
+            timeout=10.0
+        )
+        
+        if find_wa_response.status_code == 200:
+            data = find_wa_response.json()
+            if data.get("status") == "success" and data.get("data"):
+                return data["data"].get("id")
+        
+        # Create new subscriber if not found
+        create_payload = {
+            "phone": clean_phone,
+            "whatsapp_phone": clean_phone,
+            "has_opt_in_sms": True,
+            "has_opt_in_email": True
+        }
+        
+        create_response = await client.post(
+            f"{MANYCHAT_BASE_URL}/fb/subscriber/createSubscriber",
+            json=create_payload,
+            headers=headers,
+            timeout=10.0
+        )
+        
+        if create_response.status_code == 200:
+            data = create_response.json()
+            if data.get("status") == "success" and data.get("data"):
+                return data["data"].get("id")
+        
+        logger.error(f"Failed to create subscriber: {create_response.text}")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error in get_or_create_subscriber: {str(e)}")
+        return None
+
+async def send_payment_reminder_manychat(customer_name: str, phone: str, amount: float, voucher_code: str, channel: str = "whatsapp") -> dict:
+    """Send payment reminder via ManyChat"""
+    message = f"Hi {customer_name}, this is a friendly reminder that your WiFi subscription of R{amount:.2f} is due on the last day of this month. Your voucher code: {voucher_code}. Please make payment to avoid service interruption. Thank you!"
+    
+    return await send_manychat_message(phone, message, channel)
+
+async def send_voucher_code_manychat(customer_name: str, phone: str, voucher_code: str, plan: str, channel: str = "whatsapp") -> dict:
+    """Send voucher code via ManyChat"""
+    plan_text = "3 devices (R200)" if plan == "3_devices" else "4 devices (R300)"
+    message = f"Hi {customer_name}, here is your WiFi voucher code: {voucher_code}\n\nPlan: {plan_text}\n\nEnjoy your internet! Contact us if you need any assistance."
+    
+    return await send_manychat_message(phone, message, channel)
+
 def extract_from_proof_image(image_content: bytes) -> dict:
     """Extract reference and amount from proof of payment image using OCR"""
     try:
