@@ -27,8 +27,10 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Calendar,
   RefreshCw,
+  Users,
+  Smartphone,
+  MessageCircle,
 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -38,18 +40,23 @@ export default function Reminders() {
   const [logs, setLogs] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sendingTest, setSendingTest] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState("");
-  const [scheduling, setScheduling] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState("whatsapp");
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [sendingVoucher, setSendingVoucher] = useState(false);
+  const [sendingBulk, setSendingBulk] = useState(false);
+  const [messagingStatus, setMessagingStatus] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [logsRes, customersRes] = await Promise.all([
-        axios.get(`${API_URL}/api/reminders/logs`, getAuthHeader()),
+      const [logsRes, customersRes, statusRes] = await Promise.all([
+        axios.get(`${API_URL}/api/messaging/logs`, getAuthHeader()),
         axios.get(`${API_URL}/api/customers`, getAuthHeader()),
+        axios.get(`${API_URL}/api/messaging/status`, getAuthHeader()),
       ]);
       setLogs(logsRes.data);
       setCustomers(customersRes.data.filter((c) => c.is_active));
+      setMessagingStatus(statusRes.data);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -61,66 +68,85 @@ export default function Reminders() {
     fetchData();
   }, [fetchData]);
 
-  const handleSendTest = async () => {
+  const handleSendReminder = async () => {
     if (!selectedCustomer) {
       toast.error("Please select a customer");
       return;
     }
-    setSendingTest(true);
+    setSendingReminder(true);
     try {
       const response = await axios.post(
-        `${API_URL}/api/reminders/send-test?customer_id=${selectedCustomer}`,
-        {},
+        `${API_URL}/api/messaging/send-reminder`,
+        { customer_id: selectedCustomer, channel: selectedChannel },
         getAuthHeader()
       );
       toast.success(response.data.message);
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Failed to send test reminder");
+      toast.error(error.response?.data?.detail || "Failed to send reminder");
     } finally {
-      setSendingTest(false);
+      setSendingReminder(false);
     }
   };
 
-  const handleScheduleMonthly = async () => {
-    setScheduling(true);
+  const handleSendVoucher = async () => {
+    if (!selectedCustomer) {
+      toast.error("Please select a customer");
+      return;
+    }
+    setSendingVoucher(true);
     try {
       const response = await axios.post(
-        `${API_URL}/api/reminders/schedule-monthly`,
-        {},
+        `${API_URL}/api/messaging/send-voucher`,
+        { customer_id: selectedCustomer, channel: selectedChannel },
         getAuthHeader()
       );
       toast.success(response.data.message);
       fetchData();
     } catch (error) {
-      toast.error("Failed to schedule reminders");
+      toast.error(error.response?.data?.detail || "Failed to send voucher");
     } finally {
-      setScheduling(false);
+      setSendingVoucher(false);
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "sent":
-        return <CheckCircle className="w-4 h-4 text-emerald-600" />;
-      case "failed":
-        return <XCircle className="w-4 h-4 text-red-600" />;
-      default:
-        return <Clock className="w-4 h-4 text-amber-600" />;
+  const handleSendBulkReminders = async () => {
+    if (!window.confirm("Send payment reminders to ALL active customers?")) {
+      return;
+    }
+    setSendingBulk(true);
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/messaging/send-bulk-reminders`,
+        { channel: selectedChannel },
+        getAuthHeader()
+      );
+      toast.success(response.data.message);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Failed to send bulk reminders");
+    } finally {
+      setSendingBulk(false);
     }
   };
 
   const getStatusBadge = (status) => {
     switch (status) {
       case "sent":
-        return <Badge className="bg-emerald-100 text-emerald-700">Sent</Badge>;
-      case "delivered":
-        return <Badge className="bg-blue-100 text-blue-700">Delivered</Badge>;
+        return <Badge className="bg-emerald-100 text-emerald-700"><CheckCircle className="w-3 h-3 mr-1" />Sent</Badge>;
       case "failed":
-        return <Badge className="bg-red-100 text-red-700">Failed</Badge>;
+        return <Badge className="bg-red-100 text-red-700"><XCircle className="w-3 h-3 mr-1" />Failed</Badge>;
       default:
-        return <Badge className="bg-amber-100 text-amber-700">Pending</Badge>;
+        return <Badge className="bg-amber-100 text-amber-700"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
     }
+  };
+
+  const getChannelIcon = (channel) => {
+    return channel === "whatsapp" ? (
+      <MessageCircle className="w-4 h-4 text-emerald-600" />
+    ) : (
+      <Smartphone className="w-4 h-4 text-blue-600" />
+    );
   };
 
   const formatDate = (isoString) => {
@@ -129,25 +155,52 @@ export default function Reminders() {
   };
 
   return (
-    <Layout title="Reminders">
+    <Layout title="Messaging">
       <div className="space-y-6" data-testid="reminders-page">
+        {/* Status Banner */}
+        {messagingStatus && (
+          <Card className={`border-2 ${messagingStatus.manychat_configured ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${messagingStatus.manychat_configured ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                <span className={`font-medium ${messagingStatus.manychat_configured ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {messagingStatus.manychat_configured 
+                    ? "ManyChat Connected - WhatsApp & SMS Ready" 
+                    : "ManyChat Not Configured"}
+                </span>
+                {messagingStatus.manychat_configured && (
+                  <div className="flex gap-2 ml-auto">
+                    <Badge className="bg-emerald-100 text-emerald-700">
+                      <MessageCircle className="w-3 h-3 mr-1" />WhatsApp
+                    </Badge>
+                    <Badge className="bg-blue-100 text-blue-700">
+                      <Smartphone className="w-3 h-3 mr-1" />SMS
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Actions Card */}
         <Card className="border-slate-200 bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-bold font-heading flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-violet-600" />
-              WhatsApp Reminders
+              Send Messages via ManyChat
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col lg:flex-row gap-4">
-              {/* Send Test */}
-              <div className="flex-1 bg-slate-50 rounded-lg p-4">
-                <h4 className="font-medium text-slate-700 mb-3">Send Test Reminder</h4>
-                <div className="flex gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Single Customer Messaging */}
+              <div className="bg-slate-50 rounded-lg p-4 space-y-4">
+                <h4 className="font-medium text-slate-700">Send to Customer</h4>
+                
+                <div className="grid grid-cols-2 gap-3">
                   <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                    <SelectTrigger className="flex-1" data-testid="customer-select">
-                      <SelectValue placeholder="Select a customer" />
+                    <SelectTrigger data-testid="customer-select">
+                      <SelectValue placeholder="Select customer" />
                     </SelectTrigger>
                     <SelectContent>
                       {customers.map((customer) => (
@@ -157,58 +210,103 @@ export default function Reminders() {
                       ))}
                     </SelectContent>
                   </Select>
+
+                  <Select value={selectedChannel} onValueChange={setSelectedChannel}>
+                    <SelectTrigger data-testid="channel-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="whatsapp">
+                        <div className="flex items-center gap-2">
+                          <MessageCircle className="w-4 h-4 text-emerald-600" />
+                          WhatsApp
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="sms">
+                        <div className="flex items-center gap-2">
+                          <Smartphone className="w-4 h-4 text-blue-600" />
+                          SMS
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex gap-3">
                   <Button
-                    onClick={handleSendTest}
-                    disabled={sendingTest || !selectedCustomer}
-                    className="bg-violet-600 hover:bg-violet-700"
-                    data-testid="send-test-btn"
+                    onClick={handleSendReminder}
+                    disabled={sendingReminder || !selectedCustomer || !messagingStatus?.manychat_configured}
+                    className="flex-1 bg-violet-600 hover:bg-violet-700"
+                    data-testid="send-reminder-btn"
                   >
-                    {sendingTest ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    {sendingReminder ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                     ) : (
-                      <Send className="w-4 h-4" />
+                      <Send className="w-4 h-4 mr-2" />
                     )}
-                    <span className="ml-2">Send Test</span>
+                    Payment Reminder
+                  </Button>
+                  
+                  <Button
+                    onClick={handleSendVoucher}
+                    disabled={sendingVoucher || !selectedCustomer || !messagingStatus?.manychat_configured}
+                    variant="secondary"
+                    className="flex-1"
+                    data-testid="send-voucher-btn"
+                  >
+                    {sendingVoucher ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4 mr-2" />
+                    )}
+                    Send Voucher
                   </Button>
                 </div>
               </div>
 
-              {/* Schedule Monthly */}
-              <div className="lg:w-80 bg-orange-50 rounded-lg p-4">
-                <h4 className="font-medium text-slate-700 mb-3">Schedule Monthly Reminders</h4>
-                <Button
-                  onClick={handleScheduleMonthly}
-                  disabled={scheduling}
-                  variant="secondary"
-                  className="w-full border-orange-200 hover:bg-orange-100"
-                  data-testid="schedule-monthly-btn"
-                >
-                  {scheduling ? (
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Calendar className="w-4 h-4 mr-2" />
-                  )}
-                  Schedule All Active Customers
-                </Button>
+              {/* Bulk Messaging */}
+              <div className="bg-orange-50 rounded-lg p-4 space-y-4">
+                <h4 className="font-medium text-slate-700">Bulk Reminders</h4>
+                <p className="text-sm text-slate-500">
+                  Send payment reminders to all {customers.length} active customers
+                </p>
+                
+                <div className="flex gap-3 items-center">
+                  <Select value={selectedChannel} onValueChange={setSelectedChannel}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="sms">SMS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Button
+                    onClick={handleSendBulkReminders}
+                    disabled={sendingBulk || customers.length === 0 || !messagingStatus?.manychat_configured}
+                    className="flex-1 bg-orange-500 hover:bg-orange-600"
+                    data-testid="send-bulk-btn"
+                  >
+                    {sendingBulk ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Users className="w-4 h-4 mr-2" />
+                    )}
+                    Send to All ({customers.length})
+                  </Button>
+                </div>
               </div>
-            </div>
-
-            {/* Info banner */}
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm text-amber-800">
-                <strong>Note:</strong> WhatsApp reminders require configuration in Settings.
-                Messages will be queued until WhatsApp API is configured.
-              </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Reminder Logs */}
+        {/* Message Logs */}
         <Card className="border-slate-200 bg-white">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg font-bold font-heading">
-                Reminder History
+                Message History
               </CardTitle>
               <Button variant="ghost" size="icon" onClick={fetchData} data-testid="refresh-btn">
                 <RefreshCw className="w-4 h-4" />
@@ -221,9 +319,9 @@ export default function Reminders() {
             ) : logs.length === 0 ? (
               <div className="py-12 text-center">
                 <MessageSquare className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                <p className="text-slate-500">No reminders sent yet</p>
+                <p className="text-slate-500">No messages sent yet</p>
                 <p className="text-sm text-slate-400 mt-1">
-                  Send a test reminder or schedule monthly reminders to get started
+                  Send a reminder or voucher to get started
                 </p>
               </div>
             ) : (
@@ -231,30 +329,34 @@ export default function Reminders() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Date</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Message Preview</TableHead>
-                      <TableHead>Scheduled For</TableHead>
-                      <TableHead>Sent At</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {logs.map((log) => (
-                      <TableRow key={log.id} className="table-row-hover" data-testid={`reminder-log-${log.id}`}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getStatusIcon(log.status)}
-                            {getStatusBadge(log.status)}
-                          </div>
+                      <TableRow key={log.id} className="table-row-hover" data-testid={`log-row-${log.id}`}>
+                        <TableCell className="text-sm">
+                          {formatDate(log.created_at)}
                         </TableCell>
                         <TableCell className="font-medium">{log.customer_name}</TableCell>
                         <TableCell className="font-mono text-sm">{log.customer_phone}</TableCell>
-                        <TableCell className="max-w-xs truncate text-sm text-slate-500">
-                          {log.message}
+                        <TableCell>
+                          <Badge className={log.message_type === "payment_reminder" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}>
+                            {log.message_type === "payment_reminder" ? "Reminder" : "Voucher"}
+                          </Badge>
                         </TableCell>
-                        <TableCell className="text-sm">{formatDate(log.scheduled_for)}</TableCell>
-                        <TableCell className="text-sm">{formatDate(log.sent_at)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {getChannelIcon(log.channel)}
+                            <span className="text-sm capitalize">{log.channel}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(log.status)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
