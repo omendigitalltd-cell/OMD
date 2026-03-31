@@ -117,7 +117,7 @@ export default function Vouchers() {
       formData.append("file", file);
       formData.append("plan", csvPlan);
       formData.append("accommodation", csvAccommodation);
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("hotspot_token");
       const res = await axios.post(
         `${API_URL}/api/vouchers/upload-csv`,
         formData,
