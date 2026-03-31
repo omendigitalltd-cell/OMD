@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { usePortalAuth } from "../context/PortalAuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -18,9 +18,6 @@ export default function PortalLogin() {
   const [loading, setLoading] = useState(false);
   const { login } = usePortalAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const refCode = searchParams.get("ref") || "";
-  const [referralCode, setReferralCode] = useState(refCode);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +27,7 @@ export default function PortalLogin() {
     try {
       const url = isRegister ? `${API_URL}/api/portal/register` : `${API_URL}/api/portal/login`;
       const body = isRegister
-        ? { name: name.trim(), phone: phone.trim(), password, referral_code: referralCode.trim() || undefined }
+        ? { name: name.trim(), phone: phone.trim(), password }
         : { phone: phone.trim(), password };
 
       const res = await fetch(url, {
@@ -102,19 +99,6 @@ export default function PortalLogin() {
                 data-testid="portal-password-input"
               />
             </div>
-            {isRegister && (
-              <div className="space-y-1.5">
-                <Label className="text-slate-300">Referral Code (optional)</Label>
-                <Input
-                  placeholder="e.g. REF-ABC123"
-                  value={referralCode}
-                  onChange={(e) => setReferralCode(e.target.value)}
-                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
-                  data-testid="portal-referral-input"
-                />
-              </div>
-            )}
-
             {error && (
               <div className="bg-red-900/30 border border-red-700 text-red-400 rounded-lg p-2.5 text-sm" data-testid="portal-error">
                 {error}

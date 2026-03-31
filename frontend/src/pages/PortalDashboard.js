@@ -4,7 +4,7 @@ import { usePortalAuth } from "../context/PortalAuthContext";
 import { Card, CardContent } from "../components/ui/card";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Star, ShoppingBag, Gift, Users, ArrowRight } from "lucide-react";
+import { Star, ShoppingBag, Gift, ArrowRight } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -71,17 +71,6 @@ export default function PortalDashboard() {
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-sky-50 border-0">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-sky-600" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">Referrals</p>
-                <p className="text-xl font-bold text-sky-700">{profile?.referral_count || 0}</p>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Quick Actions */}
@@ -103,17 +92,6 @@ export default function PortalDashboard() {
                 <div className="flex items-center gap-3">
                   <Gift className="w-5 h-5 text-amber-600" />
                   <span className="font-semibold text-slate-800">Redeem Rewards</span>
-                </div>
-                <ArrowRight className="w-4 h-4 text-slate-400" />
-              </CardContent>
-            </Card>
-          </Link>
-          <Link to="/portal/referral">
-            <Card className="border-sky-200 hover:border-sky-400 hover:shadow-md transition-all cursor-pointer">
-              <CardContent className="p-5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Users className="w-5 h-5 text-sky-600" />
-                  <span className="font-semibold text-slate-800">Refer a Friend</span>
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </CardContent>

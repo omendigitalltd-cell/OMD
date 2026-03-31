@@ -18,7 +18,6 @@ import PortalDashboard from "./pages/PortalDashboard";
 import PortalBuy from "./pages/PortalBuy";
 import PortalHistory from "./pages/PortalHistory";
 import PortalRewards from "./pages/PortalRewards";
-import PortalReferral from "./pages/PortalReferral";
 import PortalPaymentSuccess from "./pages/PortalPaymentSuccess";
 import PortalPaymentCancel from "./pages/PortalPaymentCancel";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -63,7 +62,6 @@ function AppRoutes() {
       <Route path="/portal/buy" element={<PortalProtectedRoute><PortalBuy /></PortalProtectedRoute>} />
       <Route path="/portal/history" element={<PortalProtectedRoute><PortalHistory /></PortalProtectedRoute>} />
       <Route path="/portal/rewards" element={<PortalProtectedRoute><PortalRewards /></PortalProtectedRoute>} />
-      <Route path="/portal/referral" element={<PortalProtectedRoute><PortalReferral /></PortalProtectedRoute>} />
       <Route path="/portal/payment/success" element={<PortalPaymentSuccess />} />
       <Route path="/portal/payment/cancel" element={<PortalPaymentCancel />} />
       

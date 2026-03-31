@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { usePortalAuth } from "../context/PortalAuthContext";
-import { Wifi, LayoutDashboard, ShoppingBag, History, Gift, Users, LogOut, Menu, X } from "lucide-react";
+import { Wifi, LayoutDashboard, ShoppingBag, History, Gift, LogOut, Menu, X } from "lucide-react";
 
 const navItems = [
   { path: "/portal", label: "Dashboard", icon: LayoutDashboard },
   { path: "/portal/buy", label: "Buy Plan", icon: ShoppingBag },
   { path: "/portal/history", label: "Purchases", icon: History },
   { path: "/portal/rewards", label: "Rewards", icon: Gift },
-  { path: "/portal/referral", label: "Referrals", icon: Users },
 ];
 
 export const PortalLayout = ({ children, title }) => {
