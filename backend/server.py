@@ -1846,12 +1846,16 @@ async def upload_voucher_csv(file: UploadFile = File(...), plan: str = Form(...)
     if filename.endswith(".pdf"):
         try:
             import pdfplumber
+            import re
             pdf = pdfplumber.open(io.BytesIO(content))
             lines = []
+            voucher_pattern = re.compile(r'\b(\d{6})\b')
             for page in pdf.pages:
                 page_text = page.extract_text()
                 if page_text:
-                    lines.extend(page_text.strip().splitlines())
+                    for text_line in page_text.strip().splitlines():
+                        codes = voucher_pattern.findall(text_line)
+                        lines.extend(codes)
             pdf.close()
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to read PDF: {str(e)}")
