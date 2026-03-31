@@ -13,7 +13,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import { toast } from "sonner";
-import { Ticket, Plus, Trash2, RefreshCw, Package, CheckCircle, Clock } from "lucide-react";
+import { Ticket, Plus, Trash2, RefreshCw, Package, CheckCircle, Clock, Upload } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -56,6 +56,8 @@ export default function Vouchers() {
   const [newCodes, setNewCodes] = useState("");
   const [newPlan, setNewPlan] = useState("3_devices");
   const [adding, setAdding] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [csvPlan, setCsvPlan] = useState("3_devices");
 
   const fetchData = useCallback(async () => {
     try {
@@ -96,6 +98,30 @@ export default function Vouchers() {
       toast.error(err.response?.data?.detail || "Failed to add codes");
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleCsvUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("plan", csvPlan);
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        `${API_URL}/api/vouchers/upload-csv`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${token}` } }
+      );
+      toast.success(res.data.message);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "CSV upload failed");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -179,6 +205,56 @@ export default function Vouchers() {
                 </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* CSV Upload */}
+        <Card className="border-slate-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Upload className="w-5 h-5 text-violet-600" />
+              Upload CSV
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+              <div className="space-y-1.5 flex-1">
+                <p className="text-xs text-slate-500">Upload a CSV file with voucher codes in the first column (one code per row). Header row is auto-skipped.</p>
+                <input
+                  type="file"
+                  accept=".csv,.txt"
+                  onChange={handleCsvUpload}
+                  disabled={uploading}
+                  className="block w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 file:cursor-pointer cursor-pointer"
+                  data-testid="csv-upload-input"
+                />
+              </div>
+              <div className="w-full sm:w-48">
+                <Select value={csvPlan} onValueChange={setCsvPlan}>
+                  <SelectTrigger data-testid="csv-plan-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1_day">1 Day Pass (R10)</SelectItem>
+                    <SelectItem value="1dev_1week">1 Device 1 Week (R60)</SelectItem>
+                    <SelectItem value="1dev_2weeks">1 Device 2 Weeks (R90)</SelectItem>
+                    <SelectItem value="1dev_3weeks">1 Device 3 Weeks (R120)</SelectItem>
+                    <SelectItem value="1dev_4weeks">1 Device 4 Weeks (R150)</SelectItem>
+                    <SelectItem value="2dev_1week">2 Devices 1 Week (R90)</SelectItem>
+                    <SelectItem value="2dev_2weeks">2 Devices 2 Weeks (R135)</SelectItem>
+                    <SelectItem value="2dev_3weeks">2 Devices 3 Weeks (R180)</SelectItem>
+                    <SelectItem value="2dev_4weeks">2 Devices 4 Weeks (R210)</SelectItem>
+                    <SelectItem value="3_devices">3 Devices Monthly (R200)</SelectItem>
+                    <SelectItem value="4_devices">4 Devices Monthly (R300)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {uploading && (
+              <div className="mt-3 flex items-center gap-2 text-sm text-violet-600">
+                <RefreshCw className="w-4 h-4 animate-spin" /> Processing CSV...
+              </div>
+            )}
           </CardContent>
         </Card>
 

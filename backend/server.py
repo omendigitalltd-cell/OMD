@@ -1743,6 +1743,44 @@ async def add_voucher_codes(data: VoucherBulkAdd, email: str = Depends(verify_to
     
     return {"message": f"Added {added} voucher codes ({duplicates} duplicates skipped)", "added": added, "duplicates": duplicates}
 
+@api_router.post("/vouchers/upload-csv")
+async def upload_voucher_csv(file: UploadFile = File(...), plan: str = Form(...), email: str = Depends(verify_token)):
+    """Admin: Upload CSV file with voucher codes. CSV should have codes in the first column."""
+    if plan not in PLAN_RATES:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    
+    import csv
+    import io
+    
+    content = await file.read()
+    text = content.decode("utf-8", errors="ignore")
+    reader = csv.reader(io.StringIO(text))
+    
+    added = 0
+    duplicates = 0
+    for row in reader:
+        if not row:
+            continue
+        code = row[0].strip()
+        if not code or code.lower() in ("code", "voucher", "voucher_code", "voucher code"):
+            continue  # skip header rows
+        existing = await db.voucher_pool.find_one({"code": code})
+        if existing:
+            duplicates += 1
+            continue
+        await db.voucher_pool.insert_one({
+            "id": str(uuid.uuid4()),
+            "code": code,
+            "plan": plan,
+            "assigned": False,
+            "assigned_to": None,
+            "assigned_at": None,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        added += 1
+    
+    return {"message": f"Uploaded {added} voucher codes ({duplicates} duplicates skipped)", "added": added, "duplicates": duplicates}
+
 @api_router.get("/vouchers")
 async def get_voucher_pool(email: str = Depends(verify_token)):
     """Admin: Get all voucher codes in the pool"""
