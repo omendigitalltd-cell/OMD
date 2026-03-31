@@ -27,8 +27,6 @@ const PLAN_LABELS = {
   "2dev_2weeks": "2D 2W",
   "2dev_3weeks": "2D 3W",
   "2dev_4weeks": "2D 4W",
-  "3_devices": "3D Mon",
-  "4_devices": "4D Mon",
   "test": "Test",
 };
 
@@ -42,8 +40,6 @@ const PLAN_COLORS = {
   "2dev_2weeks": "bg-indigo-100 text-indigo-700",
   "2dev_3weeks": "bg-indigo-100 text-indigo-700",
   "2dev_4weeks": "bg-indigo-100 text-indigo-700",
-  "3_devices": "bg-violet-100 text-violet-700",
-  "4_devices": "bg-orange-100 text-orange-700",
   "test": "bg-slate-100 text-slate-600",
 };
 
@@ -190,8 +186,6 @@ export default function Vouchers() {
                     <SelectItem value="2dev_2weeks">2 Devices 2 Weeks (R135)</SelectItem>
                     <SelectItem value="2dev_3weeks">2 Devices 3 Weeks (R180)</SelectItem>
                     <SelectItem value="2dev_4weeks">2 Devices 4 Weeks (R210)</SelectItem>
-                    <SelectItem value="3_devices">3 Devices Monthly (R200)</SelectItem>
-                    <SelectItem value="4_devices">4 Devices Monthly (R300)</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -244,8 +238,6 @@ export default function Vouchers() {
                     <SelectItem value="2dev_2weeks">2 Devices 2 Weeks (R135)</SelectItem>
                     <SelectItem value="2dev_3weeks">2 Devices 3 Weeks (R180)</SelectItem>
                     <SelectItem value="2dev_4weeks">2 Devices 4 Weeks (R210)</SelectItem>
-                    <SelectItem value="3_devices">3 Devices Monthly (R200)</SelectItem>
-                    <SelectItem value="4_devices">4 Devices Monthly (R300)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

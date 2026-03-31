@@ -269,8 +269,6 @@ PLAN_RATES = {
     "2dev_2weeks": 135.0,
     "2dev_3weeks": 180.0,
     "2dev_4weeks": 210.0,
-    "3_devices": 200.0,
-    "4_devices": 300.0,
     "test": 10.0
 }
 
@@ -391,8 +389,6 @@ REWARD_TIERS = {
     "2dev_2weeks": 120,
     "2dev_3weeks": 160,
     "2dev_4weeks": 190,
-    "3_devices": 180,
-    "4_devices": 270,
 }
 
 REFERRAL_BONUS_POINTS = 5
@@ -2351,8 +2347,7 @@ async def portal_payment_initiate(data: dict, user: dict = Depends(verify_portal
         "1dev_2weeks": "1 Device 2 Weeks (R90)", "1dev_3weeks": "1 Device 3 Weeks (R120)",
         "1dev_4weeks": "1 Device 4 Weeks (R150)", "2dev_1week": "2 Devices 1 Week (R90)",
         "2dev_2weeks": "2 Devices 2 Weeks (R135)", "2dev_3weeks": "2 Devices 3 Weeks (R180)",
-        "2dev_4weeks": "2 Devices 4 Weeks (R210)", "3_devices": "3 Devices Monthly (R200)",
-        "4_devices": "4 Devices Monthly (R300)", "test": "Test Plan (R10)",
+        "2dev_4weeks": "2 Devices 4 Weeks (R210)", "test": "Test Plan (R10)",
     }
     plan_label = plan_labels.get(plan, plan)
     

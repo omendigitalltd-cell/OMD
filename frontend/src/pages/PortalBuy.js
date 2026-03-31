@@ -17,8 +17,6 @@ const PLANS = [
   { id: "2dev_2weeks", name: "2 Devices", price: 135, desc: "2 weeks", color: "bg-indigo-100 text-indigo-700" },
   { id: "2dev_3weeks", name: "2 Devices", price: 180, desc: "3 weeks", color: "bg-indigo-100 text-indigo-700" },
   { id: "2dev_4weeks", name: "2 Devices", price: 210, desc: "4 weeks", color: "bg-indigo-100 text-indigo-700" },
-  { id: "3_devices", name: "3 Devices", price: 200, desc: "Monthly", color: "bg-violet-100 text-violet-700" },
-  { id: "4_devices", name: "4 Devices", price: 300, desc: "Monthly", color: "bg-orange-100 text-orange-700" },
 ];
 
 export default function PortalBuy() {

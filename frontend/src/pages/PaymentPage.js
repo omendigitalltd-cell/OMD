@@ -96,22 +96,6 @@ const PLANS = [
     border: "border-indigo-200 hover:border-indigo-400",
   },
   {
-    id: "3_devices",
-    name: "3 Devices",
-    price: 200,
-    desc: "Monthly access",
-    badge: "bg-violet-100 text-violet-700",
-    border: "border-violet-200 hover:border-violet-400",
-  },
-  {
-    id: "4_devices",
-    name: "4 Devices",
-    price: 300,
-    desc: "Monthly access",
-    badge: "bg-orange-100 text-orange-700",
-    border: "border-orange-200 hover:border-orange-400",
-  },
-  {
     id: "test",
     name: "Test Plan",
     price: 10,
