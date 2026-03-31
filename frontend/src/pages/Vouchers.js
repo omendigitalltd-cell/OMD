@@ -53,7 +53,9 @@ export default function Vouchers() {
   const [newPlan, setNewPlan] = useState("3_devices");
   const [adding, setAdding] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [csvPlan, setCsvPlan] = useState("3_devices");
+  const [csvPlan, setCsvPlan] = useState("1_day");
+  const [newAccommodation, setNewAccommodation] = useState("");
+  const [csvAccommodation, setCsvAccommodation] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -80,11 +82,15 @@ export default function Vouchers() {
       toast.error("Enter at least one voucher code");
       return;
     }
+    if (!newAccommodation) {
+      toast.error("Select an accommodation");
+      return;
+    }
     setAdding(true);
     try {
       const res = await axios.post(
         `${API_URL}/api/vouchers/add`,
-        { codes, plan: newPlan },
+        { codes, plan: newPlan, accommodation: newAccommodation },
         getAuthHeader()
       );
       toast.success(res.data.message);
@@ -100,11 +106,17 @@ export default function Vouchers() {
   const handleCsvUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!csvAccommodation) {
+      toast.error("Select an accommodation for CSV upload");
+      e.target.value = "";
+      return;
+    }
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("plan", csvPlan);
+      formData.append("accommodation", csvAccommodation);
       const token = localStorage.getItem("token");
       const res = await axios.post(
         `${API_URL}/api/vouchers/upload-csv`,
@@ -188,6 +200,19 @@ export default function Vouchers() {
                     <SelectItem value="2dev_4weeks">2 Devices 4 Weeks (R210)</SelectItem>
                   </SelectContent>
                 </Select>
+                <Select value={newAccommodation} onValueChange={setNewAccommodation}>
+                  <SelectTrigger data-testid="voucher-accommodation-select">
+                    <SelectValue placeholder="Select accommodation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MAJOALE ROOMS">Majoale Rooms</SelectItem>
+                    <SelectItem value="MAJOLA ROOMS">Majola Rooms</SelectItem>
+                    <SelectItem value="91 CENTURY">91 Century</SelectItem>
+                    <SelectItem value="MAHLASELA ROOMS">Mahlasela Rooms</SelectItem>
+                    <SelectItem value="KB STUDENT ACCOMMODATION">KB Student Accommodation</SelectItem>
+                    <SelectItem value="MOKOEPA CLUBVIEW ESTATE">Mokoepa Clubview Estate</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button
                   onClick={handleAddCodes}
                   disabled={adding || !newCodes.trim()}
@@ -223,7 +248,7 @@ export default function Vouchers() {
                   data-testid="csv-upload-input"
                 />
               </div>
-              <div className="w-full sm:w-48">
+              <div className="w-full sm:w-48 space-y-3">
                 <Select value={csvPlan} onValueChange={setCsvPlan}>
                   <SelectTrigger data-testid="csv-plan-select">
                     <SelectValue />
@@ -238,6 +263,19 @@ export default function Vouchers() {
                     <SelectItem value="2dev_2weeks">2 Devices 2 Weeks (R135)</SelectItem>
                     <SelectItem value="2dev_3weeks">2 Devices 3 Weeks (R180)</SelectItem>
                     <SelectItem value="2dev_4weeks">2 Devices 4 Weeks (R210)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={csvAccommodation} onValueChange={setCsvAccommodation}>
+                  <SelectTrigger data-testid="csv-accommodation-select">
+                    <SelectValue placeholder="Select accommodation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MAJOALE ROOMS">Majoale Rooms</SelectItem>
+                    <SelectItem value="MAJOLA ROOMS">Majola Rooms</SelectItem>
+                    <SelectItem value="91 CENTURY">91 Century</SelectItem>
+                    <SelectItem value="MAHLASELA ROOMS">Mahlasela Rooms</SelectItem>
+                    <SelectItem value="KB STUDENT ACCOMMODATION">KB Student Accommodation</SelectItem>
+                    <SelectItem value="MOKOEPA CLUBVIEW ESTATE">Mokoepa Clubview Estate</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -279,6 +317,7 @@ export default function Vouchers() {
                     <TableRow>
                       <TableHead>Code</TableHead>
                       <TableHead>Plan</TableHead>
+                      <TableHead>Accommodation</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Assigned To</TableHead>
                       <TableHead>Added</TableHead>
@@ -294,6 +333,7 @@ export default function Vouchers() {
                             {PLAN_LABELS[v.plan] || v.plan}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-xs text-slate-600">{v.accommodation || "-"}</TableCell>
                         <TableCell>
                           {v.assigned ? (
                             <Badge className="bg-emerald-100 text-emerald-700"><CheckCircle className="w-3 h-3 mr-1" />Assigned</Badge>

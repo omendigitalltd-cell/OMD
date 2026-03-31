@@ -187,6 +187,7 @@ class PortalCustomerRegister(BaseModel):
     name: str
     phone: str
     password: str
+    accommodation: str
     referral_code: Optional[str] = None
 
 class PortalCustomerLogin(BaseModel):
@@ -392,6 +393,15 @@ REWARD_TIERS = {
 }
 
 REFERRAL_BONUS_POINTS = 5
+
+ACCOMMODATIONS = [
+    "MAJOALE ROOMS",
+    "MAJOLA ROOMS",
+    "91 CENTURY",
+    "MAHLASELA ROOMS",
+    "KB STUDENT ACCOMMODATION",
+    "MOKOEPA CLUBVIEW ESTATE",
+]
 
 def parse_bank_statement_pdf(pdf_content: bytes) -> List[dict]:
     """Parse bank statement PDF and extract transactions"""
@@ -1784,12 +1794,15 @@ class VoucherPoolEntry(BaseModel):
 class VoucherBulkAdd(BaseModel):
     codes: List[str]
     plan: str
+    accommodation: str
 
 @api_router.post("/vouchers/add")
 async def add_voucher_codes(data: VoucherBulkAdd, email: str = Depends(verify_token)):
     """Admin: Add voucher codes to the pool"""
     if data.plan not in PLAN_RATES:
-        raise HTTPException(status_code=400, detail="Plan must be '3_devices' or '4_devices'")
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    if data.accommodation not in ACCOMMODATIONS:
+        raise HTTPException(status_code=400, detail="Invalid accommodation")
     
     added = 0
     duplicates = 0
@@ -1805,6 +1818,7 @@ async def add_voucher_codes(data: VoucherBulkAdd, email: str = Depends(verify_to
             "id": str(uuid.uuid4()),
             "code": code,
             "plan": data.plan,
+            "accommodation": data.accommodation,
             "assigned": False,
             "assigned_to": None,
             "assigned_at": None,
@@ -1815,10 +1829,12 @@ async def add_voucher_codes(data: VoucherBulkAdd, email: str = Depends(verify_to
     return {"message": f"Added {added} voucher codes ({duplicates} duplicates skipped)", "added": added, "duplicates": duplicates}
 
 @api_router.post("/vouchers/upload-csv")
-async def upload_voucher_csv(file: UploadFile = File(...), plan: str = Form(...), email: str = Depends(verify_token)):
+async def upload_voucher_csv(file: UploadFile = File(...), plan: str = Form(...), accommodation: str = Form(...), email: str = Depends(verify_token)):
     """Admin: Upload CSV file with voucher codes. CSV should have codes in the first column."""
     if plan not in PLAN_RATES:
         raise HTTPException(status_code=400, detail="Invalid plan")
+    if accommodation not in ACCOMMODATIONS:
+        raise HTTPException(status_code=400, detail="Invalid accommodation")
     
     import csv
     import io
@@ -1843,6 +1859,7 @@ async def upload_voucher_csv(file: UploadFile = File(...), plan: str = Form(...)
             "id": str(uuid.uuid4()),
             "code": code,
             "plan": plan,
+            "accommodation": accommodation,
             "assigned": False,
             "assigned_to": None,
             "assigned_at": None,
@@ -1883,10 +1900,11 @@ async def get_voucher_stats(email: str = Depends(verify_token)):
 # ==================== PAYFAST PAYMENT ROUTES (PUBLIC) ====================
 
 class PaymentInitiateRequest(BaseModel):
-    plan: str  # "3_devices" or "4_devices"
+    plan: str
     customer_name: str
     customer_phone: str
     customer_email: Optional[str] = None
+    accommodation: Optional[str] = None
 
 @api_router.post("/payment/initiate")
 async def initiate_payment(data: PaymentInitiateRequest):
@@ -1912,7 +1930,10 @@ async def initiate_payment(data: PaymentInitiateRequest):
     plan_label = plan_labels.get(data.plan, data.plan)
     
     # Check if voucher codes are available
-    available = await db.voucher_pool.find_one({"plan": data.plan, "assigned": False})
+    voucher_query = {"plan": data.plan, "assigned": False}
+    if data.accommodation and data.accommodation in ACCOMMODATIONS:
+        voucher_query["accommodation"] = data.accommodation
+    available = await db.voucher_pool.find_one(voucher_query)
     if not available:
         raise HTTPException(status_code=400, detail="No voucher codes available for this plan. Please contact support.")
     
@@ -1939,6 +1960,7 @@ async def initiate_payment(data: PaymentInitiateRequest):
         "customer_name": data.customer_name,
         "customer_phone": data.customer_phone,
         "customer_email": data.customer_email or "",
+        "accommodation": data.accommodation if data.accommodation in ACCOMMODATIONS else None,
         "status": "pending",
         "voucher_code": None,
         "pf_payment_id": None,
@@ -2014,8 +2036,18 @@ async def payfast_itn_callback(request: Request):
         if payment_status == "COMPLETE" and payment["status"] != "complete":
             # Assign a voucher code from the pool
             plan = itn_data.get("custom_str2") or payment["plan"]
+            
+            # Build voucher query - filter by accommodation if portal customer
+            voucher_query = {"plan": plan, "assigned": False}
+            if payment.get("portal_customer_id"):
+                portal_cust = await db.portal_customers.find_one({"id": payment["portal_customer_id"]})
+                if portal_cust and portal_cust.get("accommodation"):
+                    voucher_query["accommodation"] = portal_cust["accommodation"]
+            elif payment.get("accommodation"):
+                voucher_query["accommodation"] = payment["accommodation"]
+            
             voucher = await db.voucher_pool.find_one_and_update(
-                {"plan": plan, "assigned": False},
+                voucher_query,
                 {"$set": {
                     "assigned": True,
                     "assigned_to": order_id,
@@ -2112,12 +2144,20 @@ async def get_all_payments(email: str = Depends(verify_token)):
 
 # ==================== CUSTOMER PORTAL ROUTES ====================
 
+@api_router.get("/portal/accommodations")
+async def get_accommodations():
+    """Public: Get list of available accommodations"""
+    return {"accommodations": ACCOMMODATIONS}
+
 @api_router.post("/portal/register")
 async def portal_register(data: PortalCustomerRegister):
     """Public: Register a new portal customer"""
     existing = await db.portal_customers.find_one({"phone": data.phone})
     if existing:
         raise HTTPException(status_code=400, detail="Phone number already registered")
+    
+    if data.accommodation not in ACCOMMODATIONS:
+        raise HTTPException(status_code=400, detail="Invalid accommodation")
     
     customer_id = str(uuid.uuid4())
     referral_code = f"REF-{uuid.uuid4().hex[:6].upper()}"
@@ -2128,6 +2168,7 @@ async def portal_register(data: PortalCustomerRegister):
         "phone": data.phone.strip(),
         "password_hash": bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode(),
         "points": 0,
+        "accommodation": data.accommodation,
         "referral_code": referral_code,
         "referred_by": None,
         "created_at": datetime.now(timezone.utc).isoformat()
@@ -2260,9 +2301,13 @@ async def portal_redeem(data: dict, user: dict = Depends(verify_portal_token)):
     if customer.get("points", 0) < pts_needed:
         raise HTTPException(status_code=400, detail=f"Not enough points. Need {pts_needed}, have {customer.get('points', 0)}")
     
-    # Find available voucher
+    # Find available voucher (filtered by customer's accommodation)
+    voucher_query = {"plan": plan, "assigned": False}
+    if customer.get("accommodation"):
+        voucher_query["accommodation"] = customer["accommodation"]
+    
     voucher = await db.voucher_pool.find_one_and_update(
-        {"plan": plan, "assigned": False},
+        voucher_query,
         {"$set": {
             "assigned": True,
             "assigned_to": f"REDEEM-{user['customer_id'][:8]}",

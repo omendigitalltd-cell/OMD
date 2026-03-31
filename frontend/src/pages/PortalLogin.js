@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../components/ui/select";
 import { Wifi, LogIn, UserPlus } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -14,6 +17,7 @@ export default function PortalLogin() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [accommodation, setAccommodation] = useState("");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const { login } = usePortalAuth();
@@ -27,7 +31,7 @@ export default function PortalLogin() {
     try {
       const url = isRegister ? `${API_URL}/api/portal/register` : `${API_URL}/api/portal/login`;
       const body = isRegister
-        ? { name: name.trim(), phone: phone.trim(), password }
+        ? { name: name.trim(), phone: phone.trim(), password, accommodation }
         : { phone: phone.trim(), password };
 
       const res = await fetch(url, {
@@ -99,6 +103,25 @@ export default function PortalLogin() {
                 data-testid="portal-password-input"
               />
             </div>
+            {isRegister && (
+              <div className="space-y-1.5">
+                <Label className="text-slate-300">Accommodation</Label>
+                <Select value={accommodation} onValueChange={setAccommodation}>
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white" data-testid="portal-accommodation-select">
+                    <SelectValue placeholder="Select your accommodation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MAJOALE ROOMS">Majoale Rooms</SelectItem>
+                    <SelectItem value="MAJOLA ROOMS">Majola Rooms</SelectItem>
+                    <SelectItem value="91 CENTURY">91 Century</SelectItem>
+                    <SelectItem value="MAHLASELA ROOMS">Mahlasela Rooms</SelectItem>
+                    <SelectItem value="KB STUDENT ACCOMMODATION">KB Student Accommodation</SelectItem>
+                    <SelectItem value="MOKOEPA CLUBVIEW ESTATE">Mokoepa Clubview Estate</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {error && (
               <div className="bg-red-900/30 border border-red-700 text-red-400 rounded-lg p-2.5 text-sm" data-testid="portal-error">
                 {error}
@@ -107,7 +130,7 @@ export default function PortalLogin() {
 
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || (isRegister && !accommodation)}
               className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
               data-testid="portal-submit-btn"
             >
