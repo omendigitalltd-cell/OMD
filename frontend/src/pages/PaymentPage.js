@@ -26,6 +26,15 @@ const PLANS = [
     border: "border-orange-200 hover:border-orange-400",
     badge: "bg-orange-100 text-orange-700",
   },
+  {
+    id: "test",
+    name: "Test Plan",
+    price: 10,
+    devices: 1,
+    color: "from-slate-500 to-slate-400",
+    border: "border-slate-200 hover:border-slate-400",
+    badge: "bg-slate-100 text-slate-600",
+  },
 ];
 
 export default function PaymentPage() {

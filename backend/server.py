@@ -229,7 +229,8 @@ class CommissionSummary(BaseModel):
 
 PLAN_RATES = {
     "3_devices": 200.0,
-    "4_devices": 300.0
+    "4_devices": 300.0,
+    "test": 10.0
 }
 
 MONTH_NAMES = [

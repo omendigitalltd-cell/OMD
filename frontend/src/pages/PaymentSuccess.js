@@ -63,7 +63,7 @@ export default function PaymentSuccess() {
     }
   };
 
-  const planLabel = payment?.plan === "3_devices" ? "3 Devices" : "4 Devices";
+  const planLabel = payment?.plan === "3_devices" ? "3 Devices" : payment?.plan === "4_devices" ? "4 Devices" : "Test Plan";
 
   if (loading) {
     return (
