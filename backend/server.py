@@ -19,6 +19,11 @@ import pdfplumber
 import io
 import pytesseract
 from PIL import Image
+import httpx
+
+# ManyChat API Configuration
+MANYCHAT_API_KEY = os.environ.get('MANYCHAT_API_KEY', '')
+MANYCHAT_BASE_URL = "https://api.manychat.com"
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
