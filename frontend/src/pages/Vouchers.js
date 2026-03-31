@@ -17,6 +17,36 @@ import { Ticket, Plus, Trash2, RefreshCw, Package, CheckCircle, Clock } from "lu
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+const PLAN_LABELS = {
+  "1_day": "1 Day",
+  "1dev_1week": "1D 1W",
+  "1dev_2weeks": "1D 2W",
+  "1dev_3weeks": "1D 3W",
+  "1dev_4weeks": "1D 4W",
+  "2dev_1week": "2D 1W",
+  "2dev_2weeks": "2D 2W",
+  "2dev_3weeks": "2D 3W",
+  "2dev_4weeks": "2D 4W",
+  "3_devices": "3D Mon",
+  "4_devices": "4D Mon",
+  "test": "Test",
+};
+
+const PLAN_COLORS = {
+  "1_day": "bg-emerald-100 text-emerald-700",
+  "1dev_1week": "bg-sky-100 text-sky-700",
+  "1dev_2weeks": "bg-sky-100 text-sky-700",
+  "1dev_3weeks": "bg-sky-100 text-sky-700",
+  "1dev_4weeks": "bg-sky-100 text-sky-700",
+  "2dev_1week": "bg-indigo-100 text-indigo-700",
+  "2dev_2weeks": "bg-indigo-100 text-indigo-700",
+  "2dev_3weeks": "bg-indigo-100 text-indigo-700",
+  "2dev_4weeks": "bg-indigo-100 text-indigo-700",
+  "3_devices": "bg-violet-100 text-violet-700",
+  "4_devices": "bg-orange-100 text-orange-700",
+  "test": "bg-slate-100 text-slate-600",
+};
+
 export default function Vouchers() {
   const { getAuthHeader } = useAuth();
   const [vouchers, setVouchers] = useState([]);
@@ -87,19 +117,13 @@ export default function Vouchers() {
       <div className="space-y-6" data-testid="vouchers-page">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: "3-Device Available", val: stats["3_devices"]?.available || 0, color: "text-violet-600", bg: "bg-violet-50" },
-              { label: "3-Device Assigned", val: stats["3_devices"]?.assigned || 0, color: "text-violet-400", bg: "bg-violet-50" },
-              { label: "4-Device Available", val: stats["4_devices"]?.available || 0, color: "text-orange-600", bg: "bg-orange-50" },
-              { label: "4-Device Assigned", val: stats["4_devices"]?.assigned || 0, color: "text-orange-400", bg: "bg-orange-50" },
-              { label: "1-Day Available", val: stats["1_day"]?.available || 0, color: "text-emerald-600", bg: "bg-emerald-50" },
-              { label: "1-Day Assigned", val: stats["1_day"]?.assigned || 0, color: "text-emerald-400", bg: "bg-emerald-50" },
-            ].map((s, i) => (
-              <Card key={i} className={`${s.bg} border-0`}>
-                <CardContent className="p-4 text-center">
-                  <p className="text-xs text-slate-500 mb-1">{s.label}</p>
-                  <p className={`text-2xl font-bold ${s.color}`}>{s.val}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {Object.entries(stats).map(([plan, s]) => (
+              <Card key={plan} className="bg-slate-50 border-0">
+                <CardContent className="p-3 text-center">
+                  <p className="text-xs text-slate-500 mb-1">{PLAN_LABELS[plan] || plan}</p>
+                  <p className="text-lg font-bold text-slate-800">{s.available} <span className="text-xs font-normal text-slate-400">/ {s.total}</span></p>
+                  <p className="text-[10px] text-slate-400">{s.assigned} assigned</p>
                 </CardContent>
               </Card>
             ))}
@@ -131,9 +155,17 @@ export default function Vouchers() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="3_devices">3 Devices (R200)</SelectItem>
-                    <SelectItem value="4_devices">4 Devices (R300)</SelectItem>
                     <SelectItem value="1_day">1 Day Pass (R10)</SelectItem>
+                    <SelectItem value="1dev_1week">1 Device 1 Week (R60)</SelectItem>
+                    <SelectItem value="1dev_2weeks">1 Device 2 Weeks (R90)</SelectItem>
+                    <SelectItem value="1dev_3weeks">1 Device 3 Weeks (R120)</SelectItem>
+                    <SelectItem value="1dev_4weeks">1 Device 4 Weeks (R150)</SelectItem>
+                    <SelectItem value="2dev_1week">2 Devices 1 Week (R90)</SelectItem>
+                    <SelectItem value="2dev_2weeks">2 Devices 2 Weeks (R135)</SelectItem>
+                    <SelectItem value="2dev_3weeks">2 Devices 3 Weeks (R180)</SelectItem>
+                    <SelectItem value="2dev_4weeks">2 Devices 4 Weeks (R210)</SelectItem>
+                    <SelectItem value="3_devices">3 Devices Monthly (R200)</SelectItem>
+                    <SelectItem value="4_devices">4 Devices Monthly (R300)</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -190,8 +222,8 @@ export default function Vouchers() {
                       <TableRow key={v.id} data-testid={`voucher-row-${v.id}`}>
                         <TableCell className="font-mono font-semibold text-sm">{v.code}</TableCell>
                         <TableCell>
-                          <Badge className={v.plan === "3_devices" ? "bg-violet-100 text-violet-700" : v.plan === "4_devices" ? "bg-orange-100 text-orange-700" : "bg-emerald-100 text-emerald-700"}>
-                            {v.plan === "3_devices" ? "3 Dev" : v.plan === "4_devices" ? "4 Dev" : "1 Day"}
+                          <Badge className={PLAN_COLORS[v.plan] || "bg-slate-100 text-slate-600"}>
+                            {PLAN_LABELS[v.plan] || v.plan}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -251,8 +283,8 @@ export default function Vouchers() {
                         <TableCell className="font-medium">{p.customer_name}</TableCell>
                         <TableCell className="font-mono text-xs">{p.customer_phone}</TableCell>
                         <TableCell>
-                          <Badge className={p.plan === "3_devices" ? "bg-violet-100 text-violet-700" : p.plan === "4_devices" ? "bg-orange-100 text-orange-700" : "bg-emerald-100 text-emerald-700"}>
-                            {p.plan === "3_devices" ? "3 Dev" : p.plan === "4_devices" ? "4 Dev" : "1 Day"}
+                          <Badge className={PLAN_COLORS[p.plan] || "bg-slate-100 text-slate-600"}>
+                            {PLAN_LABELS[p.plan] || p.plan}
                           </Badge>
                         </TableCell>
                         <TableCell className="font-semibold">R{p.amount}</TableCell>

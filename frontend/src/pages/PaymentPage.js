@@ -7,42 +7,117 @@ import { Wifi, Smartphone, CreditCard, Shield, ArrowRight } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+const PLAN_LABEL_MAP = {
+  "1_day": "1 Day Pass",
+  "1dev_1week": "1 Device - 1 Week",
+  "1dev_2weeks": "1 Device - 2 Weeks",
+  "1dev_3weeks": "1 Device - 3 Weeks",
+  "1dev_4weeks": "1 Device - 4 Weeks",
+  "2dev_1week": "2 Devices - 1 Week",
+  "2dev_2weeks": "2 Devices - 2 Weeks",
+  "2dev_3weeks": "2 Devices - 3 Weeks",
+  "2dev_4weeks": "2 Devices - 4 Weeks",
+  "3_devices": "3 Devices - Monthly",
+  "4_devices": "4 Devices - Monthly",
+  "test": "Test Plan",
+};
+
 const PLANS = [
   {
     id: "1_day",
     name: "1 Day Pass",
     price: 10,
-    devices: 1,
-    color: "from-emerald-500 to-emerald-400",
-    border: "border-emerald-200 hover:border-emerald-400",
+    desc: "1 device, 24 hours",
     badge: "bg-emerald-100 text-emerald-700",
+    border: "border-emerald-200 hover:border-emerald-400",
+  },
+  {
+    id: "1dev_1week",
+    name: "1 Device",
+    price: 60,
+    desc: "1 week access",
+    badge: "bg-sky-100 text-sky-700",
+    border: "border-sky-200 hover:border-sky-400",
+  },
+  {
+    id: "1dev_2weeks",
+    name: "1 Device",
+    price: 90,
+    desc: "2 weeks access",
+    badge: "bg-sky-100 text-sky-700",
+    border: "border-sky-200 hover:border-sky-400",
+  },
+  {
+    id: "1dev_3weeks",
+    name: "1 Device",
+    price: 120,
+    desc: "3 weeks access",
+    badge: "bg-sky-100 text-sky-700",
+    border: "border-sky-200 hover:border-sky-400",
+  },
+  {
+    id: "1dev_4weeks",
+    name: "1 Device",
+    price: 150,
+    desc: "4 weeks access",
+    badge: "bg-sky-100 text-sky-700",
+    border: "border-sky-200 hover:border-sky-400",
+  },
+  {
+    id: "2dev_1week",
+    name: "2 Devices",
+    price: 90,
+    desc: "1 week access",
+    badge: "bg-indigo-100 text-indigo-700",
+    border: "border-indigo-200 hover:border-indigo-400",
+  },
+  {
+    id: "2dev_2weeks",
+    name: "2 Devices",
+    price: 135,
+    desc: "2 weeks access",
+    badge: "bg-indigo-100 text-indigo-700",
+    border: "border-indigo-200 hover:border-indigo-400",
+  },
+  {
+    id: "2dev_3weeks",
+    name: "2 Devices",
+    price: 180,
+    desc: "3 weeks access",
+    badge: "bg-indigo-100 text-indigo-700",
+    border: "border-indigo-200 hover:border-indigo-400",
+  },
+  {
+    id: "2dev_4weeks",
+    name: "2 Devices",
+    price: 210,
+    desc: "4 weeks access",
+    badge: "bg-indigo-100 text-indigo-700",
+    border: "border-indigo-200 hover:border-indigo-400",
   },
   {
     id: "3_devices",
     name: "3 Devices",
     price: 200,
-    devices: 3,
-    color: "from-violet-600 to-violet-500",
-    border: "border-violet-200 hover:border-violet-400",
+    desc: "Monthly access",
     badge: "bg-violet-100 text-violet-700",
+    border: "border-violet-200 hover:border-violet-400",
   },
   {
     id: "4_devices",
     name: "4 Devices",
     price: 300,
-    devices: 4,
-    color: "from-orange-500 to-amber-500",
-    border: "border-orange-200 hover:border-orange-400",
+    desc: "Monthly access",
     badge: "bg-orange-100 text-orange-700",
+    border: "border-orange-200 hover:border-orange-400",
   },
   {
     id: "test",
     name: "Test Plan",
     price: 10,
-    devices: 1,
-    color: "from-slate-500 to-slate-400",
-    border: "border-slate-200 hover:border-slate-400",
+    desc: "For testing only",
     badge: "bg-slate-100 text-slate-600",
+    border: "border-slate-200 hover:border-slate-400",
   },
 ];
 
@@ -136,7 +211,7 @@ export default function PaymentPage() {
         </div>
 
         {/* Plan Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
           {PLANS.map((plan) => (
             <Card
               key={plan.id}
@@ -148,21 +223,18 @@ export default function PaymentPage() {
               onClick={() => { setSelectedPlan(plan.id); setError(null); }}
               data-testid={`plan-card-${plan.id}`}
             >
-              <CardContent className="p-6 text-center space-y-4">
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${plan.badge}`}>
-                  <Wifi className="w-3 h-3" />
-                  {plan.devices} Devices
+              <CardContent className="p-4 text-center space-y-2">
+                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${plan.badge}`}>
+                  <Wifi className="w-2.5 h-2.5" />
+                  {plan.name}
                 </div>
                 <div>
-                  <span className="text-4xl font-bold text-slate-900">R{plan.price}</span>
-                  <span className="text-slate-500 text-sm">/month</span>
+                  <span className="text-2xl font-bold text-slate-900">R{plan.price}</span>
                 </div>
-                <p className="text-sm text-slate-500">
-                  Connect up to {plan.devices} devices simultaneously
-                </p>
+                <p className="text-xs text-slate-500">{plan.desc}</p>
                 {selectedPlan === plan.id && (
-                  <div className="text-violet-600 text-sm font-semibold flex items-center justify-center gap-1">
-                    <Shield className="w-4 h-4" /> Selected
+                  <div className="text-violet-600 text-xs font-semibold flex items-center justify-center gap-1">
+                    <Shield className="w-3 h-3" /> Selected
                   </div>
                 )}
               </CardContent>
@@ -237,7 +309,6 @@ export default function PaymentPage() {
                 <span className="flex items-center gap-2">
                   <CreditCard className="w-5 h-5" />
                   Pay R{selectedPlan ? PLANS.find(p => p.id === selectedPlan)?.price : "---"} with PayFast
-                  <ArrowRight className="w-4 h-4" />
                 </span>
               )}
             </Button>

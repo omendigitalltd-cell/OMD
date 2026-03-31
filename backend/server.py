@@ -228,9 +228,17 @@ class CommissionSummary(BaseModel):
 # ==================== HELPERS ====================
 
 PLAN_RATES = {
+    "1_day": 10.0,
+    "1dev_1week": 60.0,
+    "1dev_2weeks": 90.0,
+    "1dev_3weeks": 120.0,
+    "1dev_4weeks": 150.0,
+    "2dev_1week": 90.0,
+    "2dev_2weeks": 135.0,
+    "2dev_3weeks": 180.0,
+    "2dev_4weeks": 210.0,
     "3_devices": 200.0,
     "4_devices": 300.0,
-    "1_day": 10.0,
     "test": 10.0
 }
 
@@ -1755,17 +1763,13 @@ async def delete_voucher(voucher_id: str, email: str = Depends(verify_token)):
 @api_router.get("/vouchers/stats")
 async def get_voucher_stats(email: str = Depends(verify_token)):
     """Admin: Get voucher pool stats"""
-    total_3 = await db.voucher_pool.count_documents({"plan": "3_devices"})
-    available_3 = await db.voucher_pool.count_documents({"plan": "3_devices", "assigned": False})
-    total_4 = await db.voucher_pool.count_documents({"plan": "4_devices"})
-    available_4 = await db.voucher_pool.count_documents({"plan": "4_devices", "assigned": False})
-    total_1d = await db.voucher_pool.count_documents({"plan": "1_day"})
-    available_1d = await db.voucher_pool.count_documents({"plan": "1_day", "assigned": False})
-    return {
-        "3_devices": {"total": total_3, "available": available_3, "assigned": total_3 - available_3},
-        "4_devices": {"total": total_4, "available": available_4, "assigned": total_4 - available_4},
-        "1_day": {"total": total_1d, "available": available_1d, "assigned": total_1d - available_1d}
-    }
+    result = {}
+    for plan_key in PLAN_RATES:
+        total = await db.voucher_pool.count_documents({"plan": plan_key})
+        available = await db.voucher_pool.count_documents({"plan": plan_key, "assigned": False})
+        if total > 0:
+            result[plan_key] = {"total": total, "available": available, "assigned": total - available}
+    return result
 
 # ==================== PAYFAST PAYMENT ROUTES (PUBLIC) ====================
 
@@ -1782,7 +1786,21 @@ async def initiate_payment(data: PaymentInitiateRequest):
         raise HTTPException(status_code=400, detail="Invalid plan")
     
     amount = PLAN_RATES[data.plan]
-    plan_label = "3 Devices (R200)" if data.plan == "3_devices" else "4 Devices (R300)"
+    plan_labels = {
+        "1_day": "1 Day Pass (R10)",
+        "1dev_1week": "1 Device 1 Week (R60)",
+        "1dev_2weeks": "1 Device 2 Weeks (R90)",
+        "1dev_3weeks": "1 Device 3 Weeks (R120)",
+        "1dev_4weeks": "1 Device 4 Weeks (R150)",
+        "2dev_1week": "2 Devices 1 Week (R90)",
+        "2dev_2weeks": "2 Devices 2 Weeks (R135)",
+        "2dev_3weeks": "2 Devices 3 Weeks (R180)",
+        "2dev_4weeks": "2 Devices 4 Weeks (R210)",
+        "3_devices": "3 Devices Monthly (R200)",
+        "4_devices": "4 Devices Monthly (R300)",
+        "test": "Test Plan (R10)",
+    }
+    plan_label = plan_labels.get(data.plan, data.plan)
     
     # Check if voucher codes are available
     available = await db.voucher_pool.find_one({"plan": data.plan, "assigned": False})
