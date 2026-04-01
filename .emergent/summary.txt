@@ -1,141 +1,88 @@
-<analysis>**original_problem_statement**: Create an admin system for a WiFi hotspot business to capture customers by numbers and voucher codes, send automated payment reminders via WhatsApp/SMS on the last day of the month, and include a pro-rata calculation feature for 2026. 
+<analysis>**original_problem_statement**: Create an admin system for a WiFi hotspot business to capture customers, send automated payment reminders on the last day of the month, and include a pro-rata calculation feature. 
 PRODUCT REQUIREMENTS: 
-- Packages: R200 for 3 devices, R300 for 4 devices. 
-- Pro-rata dashboard preview. 
-- Refund calculator based on remaining days (1 week=8 days, 2 weeks=15 days, 3 weeks=22 days, 4 weeks=32 days) using custom voucher start and refund dates.
-- Commission management system for distributors (20% commission): Distributors upload Proof of Payment (PoP) PDFs/Images (up to 10 at a time), which are automatically OCR'd/parsed for Reference and Amount. Admin uploads Bank Statements to match against PoPs and calculate commission.
-- ManyChat integration for automated WhatsApp and SMS messaging.
+- Refund calculator based on custom duration days.
+- Commission management system for distributors (20% commission): OCR extraction of Proof of Payments (PoPs) matched against uploaded Bank Statements.
+- PayFast payment integration for purchasing vouchers (public and portal).
+- Customer Portal with registration/login, purchase history, and loyalty points/rewards system.
+- Vouchers must be assigned based on the user's specific Student Accommodation.
+- Automated messaging for sending vouchers and reminders (Switching to BulkSMS).
 
 **User's preferred language**: INSTRUCT next agent to respond in **English** only.
 
 **what currently exists?** 
-A full-stack app (React + FastAPI + MongoDB) with Admin Auth, Customer Management, Pro-rata & Refund Calculators, and a Distributor Portal. Features automated OCR/PDF parsing (/usage: pdfplumber [-h] [--structure | --structure-text]
-                  [--format {csv,json,text}] [--types TYPES [TYPES ...]]
-                  [--include-attrs INCLUDE_ATTRS [INCLUDE_ATTRS ...]]
-                  [--exclude-attrs EXCLUDE_ATTRS [EXCLUDE_ATTRS ...]]
-                  [--laparams LAPARAMS] [--precision PRECISION]
-                  [--pages PAGES [PAGES ...]] [--indent INDENT]
-                  [infile]
-
-positional arguments:
-  infile
-
-options:
-  -h, --help            show this help message and exit
-  --structure           Write the structure tree as JSON. All other arguments
-                        except --pages, --laparams, and --indent will be
-                        ignored
-  --structure-text      Write the structure tree as JSON including text
-                        contents. All other arguments except --pages,
-                        --laparams, and --indent will be ignored
-  --format {csv,json,text}
-  --types TYPES [TYPES ...]
-  --include-attrs INCLUDE_ATTRS [INCLUDE_ATTRS ...]
-                        Include *only* these object attributes in output.
-  --exclude-attrs EXCLUDE_ATTRS [EXCLUDE_ATTRS ...]
-                        Exclude these object attributes from output.
-  --laparams LAPARAMS
-  --precision PRECISION
-  --pages PAGES [PAGES ...]
-  --indent INDENT       Indent level for JSON pretty-printing.) for PoP uploads and matching logic against Admin Bank Statements. Currently midway through integrating the ManyChat API for customer messaging.
+A full-stack app (React + FastAPI + MongoDB) containing Admin Auth, Refund/Pro-rata Calculators, Distributor Portal (batch PoP upload + OCR), Public PayFast Payment page, Admin Voucher Management (add via manual, CSV, or PDF with 6-digit regex), and a Customer Portal (dashboard, buy plans via PayFast, loyalty points, rewards redemption). Vouchers are correctly mapped to specific student accommodations. The system originally used ManyChat for messaging but is currently pivoting to BulkSMS due to ManyChat subscriber creation errors.
 
 **Last working item**:
-- Last item agent was working: Integrating the ManyChat API for WhatsApp/SMS reminders. The agent gathered the integration playbook, got the user's API key (), and was actively modifying backend endpoints and  when the sequence ended.
+- Last item agent was working: Implementing BulkSMS integration to replace ManyChat for sending vouchers and reminders. The agent gathered the user's BulkSMS credentials and pulled the  for BulkSMS.
 - Status: IN PROGRESS
 - Agent Testing Done: N
-- Which testing method agent to use? backend testing agent & screenshot tool (to verify frontend triggers and API integrity).
+- Which testing method agent to use? backend testing agent & manual testing by curl/python -c to verify SMS delivery.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-Issue 1: Finish ManyChat Integration (P0)
-Issue 2: Verify Bank Statement to Proof of Payment Matching Logic (P1)
+Issue 1: Implement BulkSMS Integration & Replace ManyChat (P0)
+Issue 2: Verify Bank Statement to Proof of Payment Matching Logic E2E (P1)
 
 Issues Detail:
-- Issue 1:
-   - Attempted fixes: Agent was writing backend routes and frontend UI () to handle ManyChat API calls but stopped mid-task.
-   - Next debug checklist: Check  for ManyChat route completeness and  for UI integration. 
-   - Why fix this issue and what will be achieved with the fix? Completes a core user requirement for automated WhatsApp/SMS messaging.
+- Issue 1: 
+   - Attempted fixes: Agent pulled the integration playbook but hasn't written the code yet. ManyChat was previously attempting to send messages but failed due to 24-hour window and permission issues, so the user requested a pivot to BulkSMS.
+   - Next debug checklist: Check  to replace ManyChat endpoints/functions with BulkSMS logic. Update UI in  if necessary to reflect SMS-only capabilities.
+   - Why fix this issue and what will be achieved with the fix? Allows the system to successfully send purchased vouchers and monthly reminders to customers via SMS.
    - Status: IN PROGRESS
    - Is recurring issue? N
    - Should Test frontend/backend/both after fix? Both
    - Blocked on other issue: None
 
-- Issue 2:
-   - Attempted fixes: Agent updated  to use partial string matching (e.g.,  in bank statement matching  in PoP) because bank statement parsing was previously mistaking dates for amounts. 
-   - Next debug checklist: Verify the  logic in . Ensure amounts map correctly and partial name extraction handles edge cases.
-   - Why fix this issue and what will be achieved with the fix? Ensures correct 20% commission payouts to distributors.
+- Issue 2: 
+   - Attempted fixes: In a previous session, logic was updated for partial string matching (e.g.,  matching ), but end-to-end testing with real Capitec files was never fully verified.
+   - Next debug checklist: Test the  logic in  with actual files. Ensure commission payouts calculate accurately to 20%.
+   - Why fix this issue and what will be achieved with the fix? Ensures correct distributor commission payouts.
    - Status: TESTING PENDING
-   - Is recurring issue? Y (failed multiple times due to formatting differences)
+   - Is recurring issue? Y (historical failures with format variations)
    - Should Test frontend/backend/both after fix? Backend
    - Blocked on other issue: None
 
 **In progress Task List**:
-Task 1: Complete ManyChat Frontend & Backend Wiring (P0)
+Task 1: Complete BulkSMS Backend Wiring (P0)
 
 Task Detail:
-- Task 1:
-   - Where to resume: Review the recent edits in  related to ManyChat and finish updating .
-   - What will be achieved with this? Allows Admin to send targeted messages and voucher codes via WhatsApp & SMS.
+- Task 1: 
+   - Where to resume:  to add BulkSMS API calls using the playbook instructions. Hook this up to the PayFast ITN callback (for post-purchase voucher delivery) and the Reminders page.
+   - What will be achieved with this? Reliable delivery of vouchers and reminders.
    - Status: IN PROGRESS
-   - Should Test frontend/backend/both after fix? Both
+   - Should Test frontend/backend/both after fix? Backend
    - Blocked on something: None
 
 **Upcoming and Future Tasks**:
 Upcoming Tasks:
-- E2E testing of the Capitec bank statement parser and Proof of Payment matching logic to ensure commissions are accurately calculated. (P0)
-- Handle ManyChat edge cases (e.g., invalid phone formats, missing templates). (P1)
+- Implement automatic scheduled reminders broadcast to unpaid customers on the last day of the month. (P1)
+- Remove the Test Plan (R10) from the UI before going live. (P1)
+
 Future Tasks:
-- Add bulk reminder broadcasting to all unpaid customers on the last day of the month. (P1)
+- Customer payment history CSV export. (P2)
+- Monthly revenue reports dashboard. (P2)
 
 **Completed work in this session**:
-- Initial Setup & Auth (, , ) (DONE)
-- Pro-rata preview on  (DONE)
-- Refund Calculator in  with specific duration rules and twin date selectors (DONE)
-- Distributor Portal (, ) (DONE)
-- PDF/Image auto-extraction using usage: pdfplumber [-h] [--structure | --structure-text]
-                  [--format {csv,json,text}] [--types TYPES [TYPES ...]]
-                  [--include-attrs INCLUDE_ATTRS [INCLUDE_ATTRS ...]]
-                  [--exclude-attrs EXCLUDE_ATTRS [EXCLUDE_ATTRS ...]]
-                  [--laparams LAPARAMS] [--precision PRECISION]
-                  [--pages PAGES [PAGES ...]] [--indent INDENT]
-                  [infile]
-
-positional arguments:
-  infile
-
-options:
-  -h, --help            show this help message and exit
-  --structure           Write the structure tree as JSON. All other arguments
-                        except --pages, --laparams, and --indent will be
-                        ignored
-  --structure-text      Write the structure tree as JSON including text
-                        contents. All other arguments except --pages,
-                        --laparams, and --indent will be ignored
-  --format {csv,json,text}
-  --types TYPES [TYPES ...]
-  --include-attrs INCLUDE_ATTRS [INCLUDE_ATTRS ...]
-                        Include *only* these object attributes in output.
-  --exclude-attrs EXCLUDE_ATTRS [EXCLUDE_ATTRS ...]
-                        Exclude these object attributes from output.
-  --laparams LAPARAMS
-  --precision PRECISION
-  --pages PAGES [PAGES ...]
-  --indent INDENT       Indent level for JSON pretty-printing. &  for References & Amounts (DONE)
-- Batch upload (up to 10 files) for Proof of Payments (DONE)
+- Fixed PayFast ITN signature validation (requires alphabetical key sorting). (DONE)
+- Built Public Payment Page () and Admin Voucher management. (DONE)
+- Built Customer Portal () including auth, dashboard, buying plans, and loyalty rewards redemption. (DONE)
+- Implemented Accommodation-based filtering (Customers must select accommodation during registration; they only receive vouchers assigned to that specific accommodation). (DONE)
+- Enabled Voucher Upload via CSV and PDF (with strict regex extracting only 6-digit numbers from PDFs to avoid junk data). (DONE)
+- Implemented and subsequently *removed* a portal referral system as per user request. (DONE)
 
 **Earlier issues found/mentioned but not fixed**:
-- None explicitly missed, though the end-to-end verification of the final Bank Statement matching logic was skipped to pivot to ManyChat integration.
+- End-to-end verification of the Bank Statement ↔ Proof of Payment matching process has been deferred multiple times to build frontend portal features.
 
 **Known issue recurrence from previous fork**:
-- Issue recurrence in previous fork: N/A
-- Recurrence count: 0
-- Status: NOT STARTED
+- Issue recurrence in previous fork: Bank Statement regex/parsing logic fragility.
+- Recurrence count: 1
+- Status: TESTING PENDING
 
 **Code Architecture**:
 
 
 **Key Technical Concepts**:
-React frontend, FastAPI backend, MongoDB, JWT Authentication, PDF Text Extraction (usage: pdfplumber [-h] [--structure | --structure-text]
+React frontend, FastAPI backend, MongoDB, JWT Authentication (Admin, Distributor, and Portal roles), PayFast Payment Gateway Integration (Instant Transaction Notifications/ITN), PDF Text Extraction (usage: pdfplumber [-h] [--structure | --structure-text]
                   [--format {csv,json,text}] [--types TYPES [TYPES ...]]
                   [--include-attrs INCLUDE_ATTRS [INCLUDE_ATTRS ...]]
                   [--exclude-attrs EXCLUDE_ATTRS [EXCLUDE_ATTRS ...]]
@@ -163,130 +110,78 @@ options:
   --laparams LAPARAMS
   --precision PRECISION
   --pages PAGES [PAGES ...]
-  --indent INDENT       Indent level for JSON pretty-printing.), Image OCR (), External API Integration (ManyChat).
+  --indent INDENT       Indent level for JSON pretty-printing. with regex), External API Integration (BulkSMS).
 
 **key DB schema**:
-- users: {email, password_hash, role}
-- customers: {name, phone, voucher_code, plan, status}
-- distributors: {name, phone, email, password_hash}
-- proof_of_payments: {distributor_id, filename, extracted_ref, extracted_amount, status, uploaded_at}
-- bank_statements: {filename, entries (list), uploaded_at}
-- commissions: {distributor_id, proof_id, statement_entry_id, amount, status}
+- : {email, password_hash, role}
+- : {name, phone, voucher_code, plan, status}
+- : {name, phone, password_hash, accommodation, points}
+-  / : {code, plan, accommodation, assigned, assigned_to, assigned_at}
+- : {id, status, plan, amount, customer_name, accommodation, pf_payment_id}
+- : {distributor_id, filename, extracted_ref, extracted_amount, status}
+- : {filename, entries}
+- : {distributor_id, proof_id, statement_entry_id, amount, status}
 
 **changes in tech stack**:
-- Added usage: pdfplumber [-h] [--structure | --structure-text]
-                  [--format {csv,json,text}] [--types TYPES [TYPES ...]]
-                  [--include-attrs INCLUDE_ATTRS [INCLUDE_ATTRS ...]]
-                  [--exclude-attrs EXCLUDE_ATTRS [EXCLUDE_ATTRS ...]]
-                  [--laparams LAPARAMS] [--precision PRECISION]
-                  [--pages PAGES [PAGES ...]] [--indent INDENT]
-                  [infile]
-
-positional arguments:
-  infile
-
-options:
-  -h, --help            show this help message and exit
-  --structure           Write the structure tree as JSON. All other arguments
-                        except --pages, --laparams, and --indent will be
-                        ignored
-  --structure-text      Write the structure tree as JSON including text
-                        contents. All other arguments except --pages,
-                        --laparams, and --indent will be ignored
-  --format {csv,json,text}
-  --types TYPES [TYPES ...]
-  --include-attrs INCLUDE_ATTRS [INCLUDE_ATTRS ...]
-                        Include *only* these object attributes in output.
-  --exclude-attrs EXCLUDE_ATTRS [EXCLUDE_ATTRS ...]
-                        Exclude these object attributes from output.
-  --laparams LAPARAMS
-  --precision PRECISION
-  --pages PAGES [PAGES ...]
-  --indent INDENT       Indent level for JSON pretty-printing., , , usage: pypdfium2 [-h] [--version]
-                 {arrange,attachments,extract-images,extract-text,imgtopdf,pageobjects,pdfinfo,render,tile,toc}
-                 ...
-
-Command line interface to the pypdfium2 library (Python binding to PDFium)
-
-positional arguments:
-  {arrange,attachments,extract-images,extract-text,imgtopdf,pageobjects,pdfinfo,render,tile,toc}
-    arrange             Rearrange/merge documents
-    attachments         List/extract/edit embedded files
-    extract-images      Extract images
-    extract-text        Extract text
-    imgtopdf            Convert images to PDF
-    pageobjects         Print info on pageobjects
-    pdfinfo             Print info on document and pages
-    render              Rasterize pages
-    tile                Tile pages (N-up)
-    toc                 Print table of contents
-
-options:
-  -h, --help            show this help message and exit
-  --version, -v         show program's version number and exit for document processing.
+- Added PayFast Integration logic.
+- Pivoting from ManyChat to BulkSMS for messaging.
 
 **All files of reference**: 
--  (Core backend logic, DB models, ManyChat endpoints, matching logic)
--  (Contains custom refund calculation logic)
--  (Currently being edited for ManyChat UI)
--  (Handles batch uploads of proofs)
+-  (Core logic, ITN callback, auth, PDF parsing, external APIs)
+-  (Voucher management with PDF/CSV upload logic)
+-  (Redemption logic for loyalty points)
+-  (Token logic for Admin/Portal)
 
 **Areas that need refactoring**: 
--  is getting very large (700+ lines). Bank statement matching logic and regex extractions are highly coupled and specific to Capitec bank; might need isolation or robust error handling if formats change.
+-  is extremely large (~2500 lines) and handles Admin routes, Portal routes, PDF parsing, external messaging, and Payment ITN callbacks. It desperately needs splitting into modular routers (e.g., , , ).
 
 **key api endpoints**:
+-  &  (PayFast ITN)
+-  & 
+-  & 
 - 
-- 
-- 
--  (ManyChat)
 
 **Critical Info for New Agent**:
-- **ManyChat API Key:**  (User wants both WhatsApp & SMS).
-- The  tool MUST be used for backend edits now, as  has grown extensive.
-- Regex logic for PoP references expects Capitec formatting (e.g., partial matches of names like ).
+- **BulkSMS Credentials:** TOKEN ID:  | TOKEN SECRET: 
+- The  environment variable is heavily relied upon to construct fully qualified URLs for the PayFast , , and .
+- Vouchers *must* be strictly tied to . A user in MAJOALE ROOMS can only be assigned a voucher uploaded for MAJOALE ROOMS.
+- The system checks for 6-digit regex sequences when parsing PDFs for vouchers.
 
 **documents and test reports created in this job**:
 - 
 - 
+- 
+- 
+- 
 
 **Last 10 User Messages and any pending HUMAN messages**:
-- Continue (Pending - Agent was working on  for ManyChat)
-- 4496065:cac9c84502a56ba0ced2f2d30b40cecd (Resolved)
-- both (Resolved - Channel selection for ManyChat)
-- i have manychat account activated now (Resolved)
-- bank statement seems not to be refrencing or verifiying well (Attempted fix, testing pending)
-- yes (Resolved - delete old proofs)
-- it only got 1 reference correct (Resolved - Updated regex)
-- seems it cannot read references well, it should look for word next to the word reference in proofs (Resolved)
-- link to admin so i check uploaded proofs (Resolved)
-- to be able to upload atleast 10 proofs at a time (Resolved)
+- delete all recently uploaded vouchers for majoale rooms (Resolved)
+- yes only 6 digit numbers (Resolved - PDF regex adjusted)
+- ManyChat: Could not create subscriber [Images attached] (Attempted fix for ManyChat but failed)
+- how about instead we sent voucher via sms instead of via whatsapp because it seems complicated via manychat (Resolved - Agent proposed alternatives)
+- I just created BulkSMS account (Resolved)
+- TOKEN ID: 8CEC4FFB78284F19ADE913DD02E70A34-01-6 | TOKEN SECRET: ZFhAwbzrXgxE#zEkYChGLLE!fkXFq (Pending - Integration playbook gathered, implementation needed next)
 
 **Project Health Check**:
-- Broken:  / ManyChat API routes might be in an incomplete state.
-- Mocked: None.
+- Broken: ManyChat messaging is functionally broken/abandoned.
+- Mocked: None. PayFast is running in live mode for R10 tests.
 
 **3rd Party Integrations**:
-- ManyChat (Messaging) — requires User API Key (Provided)
+- PayFast (Payments) — requires User API Key
+- BulkSMS (Messaging) — requires User API Key (Provided above)
+- ManyChat (Messaging) — To be removed/deprecated.
 
 **Testing status**:
-- Testing agent used after significant changes: YES (initially, but NOT after Commission/ManyChat additions)
+- Testing agent used after significant changes: YES (Iterations 2, 3, and 4 completed successfully).
 - Troubleshoot agent used after agent stuck in loop: NO
 - Test files created: 
-- Known regressions: Bank Statement parsing logic was fragile and patched; needs careful testing.
+- Known regressions: None currently, but replacing ManyChat with BulkSMS will require heavy regression testing on the post-payment hook.
 
 **Credentials to test flow**:
 - Admin:  / 
 - Distributor:  / 
-- ManyChat API Key: 
+- BulkSMS Token ID: 
+- BulkSMS Token Secret: 
 
 **What agent forgot to execute**:
-- The agent successfully modified the logic for matching Bank Statements to Proofs of Payments (addressing user message: bank statement seems not to be refrencing or verifiying well) but *forgot to test* the end-to-end matching process to verify if commissions generate correctly before jumping to the ManyChat integration.
-
-**Debugging checklist for current issue**:
-Issue: ManyChat Integration Incomplete
-
-Frontend files to check: 
--  (Needs UI elements to trigger WhatsApp/SMS using the new endpoints)
-
-Backend files to check:
--  (Verify  or related ManyChat wrapper functions exist and handle the API key correctly)</analysis>
+The agent pulled the  for BulkSMS but the session ended before any code was written to implement it. E2E Bank Statement testing was also bypassed to build the Customer Portal.</analysis>

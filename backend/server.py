@@ -26,9 +26,10 @@ import urllib.parse
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# ManyChat API Configuration (must be after load_dotenv)
-MANYCHAT_API_KEY = os.environ.get('MANYCHAT_API_KEY', '')
-MANYCHAT_BASE_URL = "https://api.manychat.com"
+# BulkSMS API Configuration (must be after load_dotenv)
+BULKSMS_TOKEN_ID = os.environ.get('BULKSMS_TOKEN_ID', '')
+BULKSMS_TOKEN_SECRET = os.environ.get('BULKSMS_TOKEN_SECRET', '')
+BULKSMS_BASE_URL = "https://api.bulksms.com/v1"
 
 # PayFast Configuration
 PAYFAST_MERCHANT_ID = os.environ.get('PAYFAST_MERCHANT_ID', '')
@@ -567,170 +568,110 @@ async def validate_payfast_server(itn_data: dict) -> bool:
         logger.error(f"PayFast server validation error: {str(e)}")
         return False
 
-# ==================== MANYCHAT FUNCTIONS ====================
+# ==================== BULKSMS MESSAGING FUNCTIONS ====================
 
-async def send_manychat_message(phone_number: str, message: str, channel: str = "whatsapp") -> dict:
-    """Send message via ManyChat API"""
-    if not MANYCHAT_API_KEY:
-        logger.error("ManyChat API key not configured")
-        return {"success": False, "error": "ManyChat API key not configured"}
-    
+def format_phone_international(phone_number: str) -> str:
+    """Convert South African local phone number to international format (+27...)"""
+    clean = phone_number.strip().replace(" ", "").replace("-", "")
+    if clean.startswith('+'):
+        return clean
+    if clean.startswith('0'):
+        return '+27' + clean[1:]
+    if clean.startswith('27'):
+        return '+' + clean
+    return '+27' + clean
+
+async def send_bulksms_message(phone_number: str, message: str) -> dict:
+    """Send SMS via BulkSMS API"""
+    if not BULKSMS_TOKEN_ID or not BULKSMS_TOKEN_SECRET:
+        logger.error("BulkSMS credentials not configured")
+        return {"success": False, "error": "BulkSMS credentials not configured"}
+
+    international_phone = format_phone_international(phone_number)
+    credentials = f"{BULKSMS_TOKEN_ID}:{BULKSMS_TOKEN_SECRET}"
+    encoded_creds = base64.b64encode(credentials.encode()).decode()
+
     headers = {
-        "Authorization": f"Bearer {MANYCHAT_API_KEY}",
+        "Authorization": f"Basic {encoded_creds}",
         "Content-Type": "application/json"
     }
-    
+
+    payload = {
+        "to": international_phone,
+        "body": message
+    }
+
     try:
         async with httpx.AsyncClient() as http_client:
-            subscriber_id = await get_or_create_manychat_subscriber(http_client, headers, phone_number)
-            
-            if not subscriber_id:
-                return {"success": False, "error": "Could not create subscriber"}
-            
-            # Build content based on channel
-            content_type = "whatsapp" if channel == "whatsapp" else "sms"
-            payload = {
-                "subscriber_id": subscriber_id,
-                "data": {
-                    "version": "v2",
-                    "content": {
-                        "type": content_type,
-                        "messages": [
-                            {
-                                "type": "text",
-                                "text": message
-                            }
-                        ]
-                    }
-                },
-                "message_tag": "ACCOUNT_UPDATE"
-            }
-            
             response = await http_client.post(
-                f"{MANYCHAT_BASE_URL}/fb/sending/sendContent",
+                f"{BULKSMS_BASE_URL}/messages",
                 json=payload,
+                headers=headers,
+                timeout=15.0
+            )
+
+            if response.status_code in (200, 201):
+                resp_data = response.json()
+                logger.info(f"BulkSMS sent to {international_phone}: {resp_data}")
+                return {"success": True, "data": resp_data}
+            else:
+                error_text = response.text[:300]
+                logger.error(f"BulkSMS error {response.status_code}: {error_text}")
+                return {"success": False, "error": f"BulkSMS HTTP {response.status_code}: {error_text}"}
+
+    except Exception as e:
+        logger.error(f"BulkSMS API error: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+async def send_bulksms_bulk(phone_numbers: list, message: str) -> dict:
+    """Send SMS to multiple recipients via BulkSMS API"""
+    if not BULKSMS_TOKEN_ID or not BULKSMS_TOKEN_SECRET:
+        return {"success": False, "error": "BulkSMS credentials not configured"}
+
+    credentials = f"{BULKSMS_TOKEN_ID}:{BULKSMS_TOKEN_SECRET}"
+    encoded_creds = base64.b64encode(credentials.encode()).decode()
+
+    headers = {
+        "Authorization": f"Basic {encoded_creds}",
+        "Content-Type": "application/json"
+    }
+
+    messages = [
+        {"to": format_phone_international(phone), "body": message}
+        for phone in phone_numbers
+    ]
+
+    try:
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.post(
+                f"{BULKSMS_BASE_URL}/messages",
+                json=messages,
                 headers=headers,
                 timeout=30.0
             )
-            
-            if response.status_code == 200:
+
+            if response.status_code in (200, 201):
                 resp_data = response.json()
-                if resp_data.get("status") == "success":
-                    return {"success": True, "data": resp_data}
-                else:
-                    logger.error(f"ManyChat API returned error: {resp_data}")
-                    return {"success": False, "error": resp_data.get("message", "Unknown ManyChat error")}
+                logger.info(f"BulkSMS bulk sent to {len(phone_numbers)} recipients")
+                return {"success": True, "data": resp_data}
             else:
-                logger.error(f"ManyChat send error: {response.status_code} - {response.text}")
-                return {"success": False, "error": f"ManyChat HTTP {response.status_code}: {response.text[:200]}"}
-                
+                error_text = response.text[:300]
+                logger.error(f"BulkSMS bulk error {response.status_code}: {error_text}")
+                return {"success": False, "error": f"BulkSMS HTTP {response.status_code}: {error_text}"}
+
     except Exception as e:
-        logger.error(f"ManyChat API error: {str(e)}")
+        logger.error(f"BulkSMS bulk API error: {str(e)}")
         return {"success": False, "error": str(e)}
 
-async def get_or_create_manychat_subscriber(client: httpx.AsyncClient, headers: dict, phone_number: str) -> Optional[int]:
-    """Get existing subscriber or create new one in ManyChat"""
-    try:
-        # Clean phone number - ensure correct format
-        clean_phone = phone_number.strip()
-        if not clean_phone.startswith('+'):
-            if clean_phone.startswith('0'):
-                clean_phone = '+27' + clean_phone[1:]
-            else:
-                clean_phone = '+' + clean_phone
-        
-        # ManyChat expects phone without + for lookups
-        phone_no_plus = clean_phone.lstrip('+')
-        
-        # Try to find subscriber by WhatsApp phone (without +)
-        find_response = await client.get(
-            f"{MANYCHAT_BASE_URL}/fb/subscriber/findBySystemField",
-            params={"field": "whatsapp_phone", "value": phone_no_plus},
-            headers=headers,
-            timeout=10.0
-        )
-        
-        if find_response.status_code == 200:
-            data = find_response.json()
-            if data.get("status") == "success" and data.get("data"):
-                subscriber_id = data["data"].get("id")
-                if subscriber_id:
-                    return subscriber_id
-        
-        # Try phone field
-        find_phone_response = await client.get(
-            f"{MANYCHAT_BASE_URL}/fb/subscriber/findBySystemField",
-            params={"field": "phone", "value": phone_no_plus},
-            headers=headers,
-            timeout=10.0
-        )
-        
-        if find_phone_response.status_code == 200:
-            data = find_phone_response.json()
-            if data.get("status") == "success" and data.get("data"):
-                subscriber_id = data["data"].get("id")
-                if subscriber_id:
-                    return subscriber_id
-        
-        # Create new subscriber with consent_phrase (required by ManyChat)
-        create_payload = {
-            "phone": phone_no_plus,
-            "whatsapp_phone": phone_no_plus,
-            "consent_phrase": "I agree",
-            "has_opt_in_sms": True,
-            "has_opt_in_email": True
-        }
-        
-        create_response = await client.post(
-            f"{MANYCHAT_BASE_URL}/fb/subscriber/createSubscriber",
-            json=create_payload,
-            headers=headers,
-            timeout=10.0
-        )
-        
-        if create_response.status_code == 200:
-            data = create_response.json()
-            if data.get("status") == "success" and data.get("data"):
-                subscriber_id = data["data"].get("id")
-                if subscriber_id:
-                    return subscriber_id
-        
-        # Handle "already exists" - try to extract subscriber from error
-        if create_response.status_code == 400:
-            err_data = create_response.json()
-            err_msg = str(err_data)
-            if "already exists" in err_msg:
-                # Subscriber exists but findBySystemField failed - try with + prefix
-                retry = await client.get(
-                    f"{MANYCHAT_BASE_URL}/fb/subscriber/findBySystemField",
-                    params={"field": "whatsapp_phone", "value": clean_phone},
-                    headers=headers,
-                    timeout=10.0
-                )
-                if retry.status_code == 200:
-                    data = retry.json()
-                    if data.get("status") == "success" and data.get("data"):
-                        return data["data"].get("id")
-        
-        logger.error(f"Failed to create subscriber: {create_response.text}")
-        return None
-        
-    except Exception as e:
-        logger.error(f"Error in get_or_create_subscriber: {str(e)}")
-        return None
+async def send_payment_reminder_sms(customer_name: str, phone: str, amount: float, voucher_code: str) -> dict:
+    """Send payment reminder via BulkSMS"""
+    message = f"Hi {customer_name}, your WiFi subscription of R{amount:.2f} is due at month end. Voucher: {voucher_code}. Pay to avoid interruption. Thank you!"
+    return await send_bulksms_message(phone, message)
 
-async def send_payment_reminder_manychat(customer_name: str, phone: str, amount: float, voucher_code: str, channel: str = "whatsapp") -> dict:
-    """Send payment reminder via ManyChat"""
-    message = f"Hi {customer_name}, this is a friendly reminder that your WiFi subscription of R{amount:.2f} is due on the last day of this month. Your voucher code: {voucher_code}. Please make payment to avoid service interruption. Thank you!"
-    
-    return await send_manychat_message(phone, message, channel)
-
-async def send_voucher_code_manychat(customer_name: str, phone: str, voucher_code: str, plan: str, channel: str = "whatsapp") -> dict:
-    """Send voucher code via ManyChat"""
-    plan_text = "3 devices (R200)" if plan == "3_devices" else "4 devices (R300)"
-    message = f"Hi {customer_name}, here is your WiFi voucher code: {voucher_code}\n\nPlan: {plan_text}\n\nEnjoy your internet! Contact us if you need any assistance."
-    
-    return await send_manychat_message(phone, message, channel)
+async def send_voucher_code_sms(customer_name: str, phone: str, voucher_code: str, plan: str) -> dict:
+    """Send voucher code via BulkSMS"""
+    message = f"Hi {customer_name}, your WiFi voucher code: {voucher_code} (Plan: {plan}). Enjoy your internet!"
+    return await send_bulksms_message(phone, message)
 
 def extract_from_proof_image(image_content: bytes) -> dict:
     """Extract reference and amount from proof of payment image using OCR"""
@@ -1662,42 +1603,40 @@ async def get_commission_payouts(distributor_id: str = None, email: str = Depend
     payouts = await db.commission_payouts.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return payouts
 
-# ==================== MANYCHAT MESSAGING ROUTES ====================
+# ==================== SMS MESSAGING ROUTES (BulkSMS) ====================
 
 class SendReminderRequest(BaseModel):
     customer_id: str
-    channel: str = "whatsapp"  # "whatsapp" or "sms"
+    channel: str = "sms"
 
 class SendVoucherRequest(BaseModel):
     customer_id: str
-    channel: str = "whatsapp"
+    channel: str = "sms"
 
 class BulkReminderRequest(BaseModel):
-    channel: str = "whatsapp"
+    channel: str = "sms"
 
 @api_router.post("/messaging/send-reminder")
 async def send_single_reminder(data: SendReminderRequest, email: str = Depends(verify_token)):
-    """Send payment reminder to a single customer via ManyChat"""
+    """Send payment reminder to a single customer via BulkSMS"""
     customer = await db.customers.find_one({"id": data.customer_id}, {"_id": 0})
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     
-    result = await send_payment_reminder_manychat(
+    result = await send_payment_reminder_sms(
         customer["name"],
         customer["phone"],
         get_monthly_rate(customer.get("plan", "3_devices")),
-        customer["voucher_code"],
-        data.channel
+        customer["voucher_code"]
     )
     
-    # Log the message regardless of success/failure
     log_doc = {
         "id": str(uuid.uuid4()),
         "customer_id": customer["id"],
         "customer_name": customer["name"],
         "customer_phone": customer["phone"],
         "message_type": "payment_reminder",
-        "channel": data.channel,
+        "channel": "sms",
         "status": "sent" if result.get("success") else "failed",
         "error": result.get("error") if not result.get("success") else None,
         "created_at": datetime.now(timezone.utc).isoformat()
@@ -1705,34 +1644,32 @@ async def send_single_reminder(data: SendReminderRequest, email: str = Depends(v
     await db.message_logs.insert_one(log_doc)
     
     if result.get("success"):
-        return {"message": f"Reminder sent to {customer['name']} via {data.channel}", "success": True}
+        return {"message": f"Reminder sent to {customer['name']} via SMS", "success": True}
     else:
-        error_msg = result.get("error", "Failed to send message")
-        raise HTTPException(status_code=400, detail=f"ManyChat: {error_msg}")
+        error_msg = result.get("error", "Failed to send SMS")
+        raise HTTPException(status_code=400, detail=f"BulkSMS: {error_msg}")
 
 @api_router.post("/messaging/send-voucher")
 async def send_voucher_to_customer(data: SendVoucherRequest, email: str = Depends(verify_token)):
-    """Send voucher code to a customer via ManyChat"""
+    """Send voucher code to a customer via BulkSMS"""
     customer = await db.customers.find_one({"id": data.customer_id}, {"_id": 0})
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     
-    result = await send_voucher_code_manychat(
+    result = await send_voucher_code_sms(
         customer["name"],
         customer["phone"],
         customer["voucher_code"],
-        customer.get("plan", "3_devices"),
-        data.channel
+        customer.get("plan", "3_devices")
     )
     
-    # Log the message regardless of success/failure
     log_doc = {
         "id": str(uuid.uuid4()),
         "customer_id": customer["id"],
         "customer_name": customer["name"],
         "customer_phone": customer["phone"],
         "message_type": "voucher_code",
-        "channel": data.channel,
+        "channel": "sms",
         "status": "sent" if result.get("success") else "failed",
         "error": result.get("error") if not result.get("success") else None,
         "created_at": datetime.now(timezone.utc).isoformat()
@@ -1740,37 +1677,35 @@ async def send_voucher_to_customer(data: SendVoucherRequest, email: str = Depend
     await db.message_logs.insert_one(log_doc)
     
     if result.get("success"):
-        return {"message": f"Voucher sent to {customer['name']} via {data.channel}", "success": True}
+        return {"message": f"Voucher sent to {customer['name']} via SMS", "success": True}
     else:
-        error_msg = result.get("error", "Failed to send message")
-        raise HTTPException(status_code=400, detail=f"ManyChat: {error_msg}")
+        error_msg = result.get("error", "Failed to send SMS")
+        raise HTTPException(status_code=400, detail=f"BulkSMS: {error_msg}")
 
 @api_router.post("/messaging/send-bulk-reminders")
 async def send_bulk_reminders(data: BulkReminderRequest, email: str = Depends(verify_token)):
-    """Send payment reminders to all active customers via ManyChat"""
+    """Send payment reminders to all active customers via BulkSMS"""
     customers = await db.customers.find({"is_active": True}, {"_id": 0}).to_list(1000)
     
     sent_count = 0
     failed_count = 0
-    results = []
+    errors = []
     
     for customer in customers:
-        result = await send_payment_reminder_manychat(
+        result = await send_payment_reminder_sms(
             customer["name"],
             customer["phone"],
             get_monthly_rate(customer.get("plan", "3_devices")),
-            customer["voucher_code"],
-            data.channel
+            customer["voucher_code"]
         )
         
-        # Log each message
         log_doc = {
             "id": str(uuid.uuid4()),
             "customer_id": customer["id"],
             "customer_name": customer["name"],
             "customer_phone": customer["phone"],
             "message_type": "payment_reminder",
-            "channel": data.channel,
+            "channel": "sms",
             "status": "sent" if result.get("success") else "failed",
             "error": result.get("error"),
             "created_at": datetime.now(timezone.utc).isoformat()
@@ -1781,13 +1716,13 @@ async def send_bulk_reminders(data: BulkReminderRequest, email: str = Depends(ve
             sent_count += 1
         else:
             failed_count += 1
-            results.append({"customer": customer["name"], "error": result.get("error")})
+            errors.append({"customer": customer["name"], "error": result.get("error")})
     
     return {
         "message": f"Sent {sent_count} reminders, {failed_count} failed",
         "sent": sent_count,
         "failed": failed_count,
-        "errors": results[:10]  # Return first 10 errors
+        "errors": errors[:10]
     }
 
 @api_router.get("/messaging/logs")
@@ -1798,12 +1733,12 @@ async def get_message_logs(email: str = Depends(verify_token)):
 
 @api_router.get("/messaging/status")
 async def get_messaging_status(email: str = Depends(verify_token)):
-    """Check ManyChat configuration status"""
-    is_configured = bool(MANYCHAT_API_KEY)
+    """Check BulkSMS configuration status"""
+    is_configured = bool(BULKSMS_TOKEN_ID and BULKSMS_TOKEN_SECRET)
     return {
-        "manychat_configured": is_configured,
+        "bulksms_configured": is_configured,
         "api_key_set": is_configured,
-        "channels_available": ["whatsapp", "sms"] if is_configured else []
+        "channels_available": ["sms"] if is_configured else []
     }
 
 # ==================== VOUCHER POOL MANAGEMENT (ADMIN) ====================
@@ -2112,19 +2047,18 @@ async def payfast_itn_callback(request: Request):
                 }}
             )
             
-            # Try to send voucher via ManyChat
-            if MANYCHAT_API_KEY and payment.get("customer_phone"):
+            # Try to send voucher via BulkSMS
+            if BULKSMS_TOKEN_ID and payment.get("customer_phone"):
                 try:
-                    await send_voucher_code_manychat(
+                    await send_voucher_code_sms(
                         payment["customer_name"],
                         payment["customer_phone"],
                         voucher_code,
-                        plan,
-                        "whatsapp"
+                        plan
                     )
-                    logger.info(f"Voucher sent via ManyChat to {payment['customer_phone']}")
-                except Exception as mc_err:
-                    logger.error(f"ManyChat send failed: {mc_err}")
+                    logger.info(f"Voucher sent via BulkSMS to {payment['customer_phone']}")
+                except Exception as sms_err:
+                    logger.error(f"BulkSMS send failed: {sms_err}")
             
             logger.info(f"Payment {order_id} completed. Voucher: {voucher_code}")
             

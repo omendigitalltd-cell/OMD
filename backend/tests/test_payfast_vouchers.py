@@ -7,7 +7,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://reminder-blast-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://bulksms-payment-hub.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "b.e.motloung@gmail.com"

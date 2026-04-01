@@ -30,7 +30,6 @@ import {
   RefreshCw,
   Users,
   Smartphone,
-  MessageCircle,
 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -41,7 +40,6 @@ export default function Reminders() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState("");
-  const [selectedChannel, setSelectedChannel] = useState("whatsapp");
   const [sendingReminder, setSendingReminder] = useState(false);
   const [sendingVoucher, setSendingVoucher] = useState(false);
   const [sendingBulk, setSendingBulk] = useState(false);
@@ -77,7 +75,7 @@ export default function Reminders() {
     try {
       const response = await axios.post(
         `${API_URL}/api/messaging/send-reminder`,
-        { customer_id: selectedCustomer, channel: selectedChannel },
+        { customer_id: selectedCustomer, channel: "sms" },
         getAuthHeader()
       );
       toast.success(response.data.message);
@@ -98,7 +96,7 @@ export default function Reminders() {
     try {
       const response = await axios.post(
         `${API_URL}/api/messaging/send-voucher`,
-        { customer_id: selectedCustomer, channel: selectedChannel },
+        { customer_id: selectedCustomer, channel: "sms" },
         getAuthHeader()
       );
       toast.success(response.data.message);
@@ -111,14 +109,14 @@ export default function Reminders() {
   };
 
   const handleSendBulkReminders = async () => {
-    if (!window.confirm("Send payment reminders to ALL active customers?")) {
+    if (!window.confirm("Send payment reminders to ALL active customers via SMS?")) {
       return;
     }
     setSendingBulk(true);
     try {
       const response = await axios.post(
         `${API_URL}/api/messaging/send-bulk-reminders`,
-        { channel: selectedChannel },
+        { channel: "sms" },
         getAuthHeader()
       );
       toast.success(response.data.message);
@@ -141,38 +139,29 @@ export default function Reminders() {
     }
   };
 
-  const getChannelIcon = (channel) => {
-    return channel === "whatsapp" ? (
-      <MessageCircle className="w-4 h-4 text-emerald-600" />
-    ) : (
-      <Smartphone className="w-4 h-4 text-blue-600" />
-    );
-  };
-
   const formatDate = (isoString) => {
     if (!isoString) return "-";
     return new Date(isoString).toLocaleString();
   };
 
+  const isConfigured = messagingStatus?.bulksms_configured;
+
   return (
-    <Layout title="Messaging">
+    <Layout title="SMS Messaging">
       <div className="space-y-6" data-testid="reminders-page">
         {/* Status Banner */}
         {messagingStatus && (
-          <Card className={`border-2 ${messagingStatus.manychat_configured ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+          <Card className={`border-2 ${isConfigured ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${messagingStatus.manychat_configured ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                <span className={`font-medium ${messagingStatus.manychat_configured ? 'text-emerald-700' : 'text-amber-700'}`}>
-                  {messagingStatus.manychat_configured 
-                    ? "ManyChat Connected - WhatsApp & SMS Ready" 
-                    : "ManyChat Not Configured"}
+                <div className={`w-3 h-3 rounded-full ${isConfigured ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                <span className={`font-medium ${isConfigured ? 'text-emerald-700' : 'text-amber-700'}`} data-testid="sms-status-text">
+                  {isConfigured
+                    ? "BulkSMS Connected - SMS Ready"
+                    : "BulkSMS Not Configured"}
                 </span>
-                {messagingStatus.manychat_configured && (
-                  <div className="flex gap-2 ml-auto">
-                    <Badge className="bg-emerald-100 text-emerald-700">
-                      <MessageCircle className="w-3 h-3 mr-1" />WhatsApp
-                    </Badge>
+                {isConfigured && (
+                  <div className="ml-auto">
                     <Badge className="bg-blue-100 text-blue-700">
                       <Smartphone className="w-3 h-3 mr-1" />SMS
                     </Badge>
@@ -188,7 +177,7 @@ export default function Reminders() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-bold font-heading flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-violet-600" />
-              Send Messages via ManyChat
+              Send SMS via BulkSMS
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -196,46 +185,24 @@ export default function Reminders() {
               {/* Single Customer Messaging */}
               <div className="bg-slate-50 rounded-lg p-4 space-y-4">
                 <h4 className="font-medium text-slate-700">Send to Customer</h4>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                    <SelectTrigger data-testid="customer-select">
-                      <SelectValue placeholder="Select customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.name} ({customer.phone})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
 
-                  <Select value={selectedChannel} onValueChange={setSelectedChannel}>
-                    <SelectTrigger data-testid="channel-select">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="whatsapp">
-                        <div className="flex items-center gap-2">
-                          <MessageCircle className="w-4 h-4 text-emerald-600" />
-                          WhatsApp
-                        </div>
+                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                  <SelectTrigger data-testid="customer-select">
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name} ({customer.phone})
                       </SelectItem>
-                      <SelectItem value="sms">
-                        <div className="flex items-center gap-2">
-                          <Smartphone className="w-4 h-4 text-blue-600" />
-                          SMS
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    ))}
+                  </SelectContent>
+                </Select>
 
                 <div className="flex gap-3">
                   <Button
                     onClick={handleSendReminder}
-                    disabled={sendingReminder || !selectedCustomer || !messagingStatus?.manychat_configured}
+                    disabled={sendingReminder || !selectedCustomer || !isConfigured}
                     className="flex-1 bg-violet-600 hover:bg-violet-700"
                     data-testid="send-reminder-btn"
                   >
@@ -246,10 +213,10 @@ export default function Reminders() {
                     )}
                     Payment Reminder
                   </Button>
-                  
+
                   <Button
                     onClick={handleSendVoucher}
-                    disabled={sendingVoucher || !selectedCustomer || !messagingStatus?.manychat_configured}
+                    disabled={sendingVoucher || !selectedCustomer || !isConfigured}
                     variant="secondary"
                     className="flex-1"
                     data-testid="send-voucher-btn"
@@ -266,36 +233,24 @@ export default function Reminders() {
 
               {/* Bulk Messaging */}
               <div className="bg-orange-50 rounded-lg p-4 space-y-4">
-                <h4 className="font-medium text-slate-700">Bulk Reminders</h4>
+                <h4 className="font-medium text-slate-700">Bulk SMS Reminders</h4>
                 <p className="text-sm text-slate-500">
-                  Send payment reminders to all {customers.length} active customers
+                  Send payment reminders to all {customers.length} active customers via SMS
                 </p>
-                
-                <div className="flex gap-3 items-center">
-                  <Select value={selectedChannel} onValueChange={setSelectedChannel}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                      <SelectItem value="sms">SMS</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <Button
-                    onClick={handleSendBulkReminders}
-                    disabled={sendingBulk || customers.length === 0 || !messagingStatus?.manychat_configured}
-                    className="flex-1 bg-orange-500 hover:bg-orange-600"
-                    data-testid="send-bulk-btn"
-                  >
-                    {sendingBulk ? (
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Users className="w-4 h-4 mr-2" />
-                    )}
-                    Send to All ({customers.length})
-                  </Button>
-                </div>
+
+                <Button
+                  onClick={handleSendBulkReminders}
+                  disabled={sendingBulk || customers.length === 0 || !isConfigured}
+                  className="w-full bg-orange-500 hover:bg-orange-600"
+                  data-testid="send-bulk-btn"
+                >
+                  {sendingBulk ? (
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Users className="w-4 h-4 mr-2" />
+                  )}
+                  Send SMS to All ({customers.length})
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -352,8 +307,8 @@ export default function Reminders() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
-                            {getChannelIcon(log.channel)}
-                            <span className="text-sm capitalize">{log.channel}</span>
+                            <Smartphone className="w-4 h-4 text-blue-600" />
+                            <span className="text-sm">SMS</span>
                           </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(log.status)}</TableCell>
