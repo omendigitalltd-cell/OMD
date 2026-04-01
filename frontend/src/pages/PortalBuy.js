@@ -38,12 +38,13 @@ export default function PortalBuy() {
         body: JSON.stringify({ plan: selectedPlan }),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Payment initiation failed");
-      }
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { throw new Error("Unexpected server response"); }
 
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Payment initiation failed");
+      }
       const form = document.createElement("form");
       form.method = "POST";
       form.action = data.payfast_url;
