@@ -2602,6 +2602,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def seed_admin():
+    """Seed default admin account on startup if it doesn't exist"""
+    admin_email = "b.e.motloung@gmail.com"
+    existing = await db.admins.find_one({"email": admin_email})
+    if not existing:
+        admin_doc = {
+            "id": str(uuid.uuid4()),
+            "email": admin_email,
+            "password": hash_password("Bobla@920821"),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.admins.insert_one(admin_doc)
+        logger.info(f"Default admin account created: {admin_email}")
+    else:
+        logger.info(f"Admin account already exists: {admin_email}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
