@@ -271,6 +271,8 @@ PLAN_RATES = {
     "2dev_2weeks": 135.0,
     "2dev_3weeks": 180.0,
     "2dev_4weeks": 210.0,
+    "3_devices": 200.0,
+    "4_devices": 300.0,
     "test": 10.0
 }
 
