@@ -1502,6 +1502,21 @@ async def get_portal_user_detail(customer_id: str, email: str = Depends(verify_t
         "redemptions": redemptions,
     }
 
+class PortalPasswordReset(BaseModel):
+    new_password: str
+
+@api_router.post("/admin/portal-users/{customer_id}/reset-password")
+async def admin_reset_portal_password(customer_id: str, data: PortalPasswordReset, email: str = Depends(verify_token)):
+    """Admin: Reset a portal customer's password"""
+    cust = await db.portal_customers.find_one({"id": customer_id})
+    if not cust:
+        raise HTTPException(status_code=404, detail="Portal user not found")
+    
+    new_hash = bcrypt.hashpw(data.new_password.encode(), bcrypt.gensalt()).decode()
+    await db.portal_customers.update_one({"id": customer_id}, {"$set": {"password_hash": new_hash}})
+    
+    return {"message": f"Password reset for {cust['name']}", "success": True}
+
 # ==================== ADMIN PROOF OF PAYMENT MANAGEMENT ====================
 
 @api_router.get("/admin/proofs")

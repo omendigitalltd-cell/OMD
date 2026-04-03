@@ -15,9 +15,10 @@ import {
 } from "../components/ui/select";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
+import { toast } from "sonner";
 import {
   Users, Search, ChevronDown, ChevronUp, Star, ShoppingCart, Gift,
-  Phone, MapPin, Calendar, Filter, TrendingUp,
+  Phone, MapPin, Calendar, Filter, TrendingUp, KeyRound,
 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -42,6 +43,8 @@ export default function PortalUsers() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [sortField, setSortField] = useState("created_at");
   const [sortDir, setSortDir] = useState("desc");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   // Date filter state
   const [filterMode, setFilterMode] = useState("all"); // "all", "month", "custom"
@@ -74,6 +77,27 @@ export default function PortalUsers() {
   }, [getAuthHeader, filterMode, selectedMonth, selectedYear, customFrom, customTo]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const handleResetPassword = async (userId, userName) => {
+    if (!resetPassword || resetPassword.length < 4) {
+      toast.error("Password must be at least 4 characters");
+      return;
+    }
+    setResetting(true);
+    try {
+      await axios.post(
+        `${API_URL}/api/admin/portal-users/${userId}/reset-password`,
+        { new_password: resetPassword },
+        getAuthHeader()
+      );
+      toast.success(`Password reset for ${userName}`);
+      setResetPassword("");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to reset password");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const filtered = users
     .filter((u) => {
@@ -337,7 +361,7 @@ export default function PortalUsers() {
         </Card>
 
         {/* User Detail Dialog */}
-        <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
+        <Dialog open={!!selectedUser} onOpenChange={() => { setSelectedUser(null); setResetPassword(""); }}>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             {selectedUser && (
               <>
@@ -453,6 +477,31 @@ export default function PortalUsers() {
                       )}
                     </div>
                   )}
+
+                  {/* Reset Password */}
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm mb-2 flex items-center gap-1">
+                      <KeyRound className="w-4 h-4" /> Reset Password
+                    </h4>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Enter new password"
+                        value={resetPassword}
+                        onChange={(e) => setResetPassword(e.target.value)}
+                        className="flex-1"
+                        data-testid="reset-password-input"
+                      />
+                      <Button
+                        onClick={() => handleResetPassword(selectedUser.id, selectedUser.name)}
+                        disabled={resetting || !resetPassword}
+                        className="bg-orange-500 hover:bg-orange-600"
+                        data-testid="reset-password-btn"
+                      >
+                        {resetting ? "Resetting..." : "Reset"}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
