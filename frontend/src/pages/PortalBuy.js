@@ -4,6 +4,7 @@ import { usePortalAuth } from "../context/PortalAuthContext";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Wifi, CreditCard, Shield } from "lucide-react";
+import axios from "axios";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -32,19 +33,12 @@ export default function PortalBuy() {
 
     try {
       const token = localStorage.getItem("portal_token");
-      const res = await fetch(`${API_URL}/api/portal/payment/initiate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan: selectedPlan }),
-      });
+      const { data } = await axios.post(
+        `${API_URL}/api/portal/payment/initiate`,
+        { plan: selectedPlan },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { throw new Error("Unexpected server response"); }
-
-      if (!res.ok) {
-        throw new Error(data.detail || "Payment initiation failed");
-      }
       const form = document.createElement("form");
       form.method = "POST";
       form.action = data.payfast_url;
@@ -58,7 +52,7 @@ export default function PortalBuy() {
       document.body.appendChild(form);
       form.submit();
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.detail || err.message || "Payment initiation failed");
       setProcessing(false);
     }
   };

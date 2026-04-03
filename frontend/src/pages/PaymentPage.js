@@ -4,6 +4,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Wifi, Smartphone, CreditCard, Shield, ArrowRight } from "lucide-react";
+import axios from "axios";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -131,23 +132,12 @@ export default function PaymentPage() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/api/payment/initiate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan: selectedPlan,
-          customer_name: name.trim(),
-          customer_phone: phone.trim(),
-          customer_email: email.trim() || undefined,
-        }),
+      const { data } = await axios.post(`${API_URL}/api/payment/initiate`, {
+        plan: selectedPlan,
+        customer_name: name.trim(),
+        customer_phone: phone.trim(),
+        customer_email: email.trim() || undefined,
       });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || "Payment initiation failed");
-      }
-
-      const data = await response.json();
 
       // Create hidden form and submit to PayFast
       const form = document.createElement("form");
@@ -165,7 +155,7 @@ export default function PaymentPage() {
       document.body.appendChild(form);
       form.submit();
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.detail || err.message || "Payment initiation failed");
       setProcessing(false);
     }
   };

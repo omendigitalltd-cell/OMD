@@ -9,6 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
 import { Wifi, LogIn, UserPlus } from "lucide-react";
+import axios from "axios";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -34,22 +35,11 @@ export default function PortalLogin() {
         ? { name: name.trim(), phone: phone.trim(), password, accommodation }
         : { phone: phone.trim(), password };
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Authentication failed");
-      }
-
-      const data = await res.json();
+      const { data } = await axios.post(url, body);
       login(data.access_token, data.customer_id);
       navigate("/portal");
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.detail || err.message || "Authentication failed");
     } finally {
       setLoading(false);
     }
