@@ -581,8 +581,10 @@ def format_phone_international(phone_number: str) -> str:
         return '+' + clean
     return '+27' + clean
 
+import asyncio
+
 async def send_bulksms_message(phone_number: str, message: str) -> dict:
-    """Send SMS via BulkSMS API"""
+    """Send SMS via BulkSMS API with retry on NOT_SENT"""
     if not BULKSMS_TOKEN_ID or not BULKSMS_TOKEN_SECRET:
         logger.error("BulkSMS credentials not configured")
         return {"success": False, "error": "BulkSMS credentials not configured"}
@@ -601,27 +603,51 @@ async def send_bulksms_message(phone_number: str, message: str) -> dict:
         "body": message
     }
 
-    try:
-        async with httpx.AsyncClient() as http_client:
-            response = await http_client.post(
-                f"{BULKSMS_BASE_URL}/messages",
-                json=payload,
-                headers=headers,
-                timeout=15.0
-            )
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient() as http_client:
+                response = await http_client.post(
+                    f"{BULKSMS_BASE_URL}/messages",
+                    json=payload,
+                    headers=headers,
+                    timeout=15.0
+                )
 
-            if response.status_code in (200, 201):
-                resp_data = response.json()
-                logger.info(f"BulkSMS sent to {international_phone}: {resp_data}")
-                return {"success": True, "data": resp_data}
-            else:
-                error_text = response.text[:300]
-                logger.error(f"BulkSMS error {response.status_code}: {error_text}")
-                return {"success": False, "error": f"BulkSMS HTTP {response.status_code}: {error_text}"}
+                if response.status_code in (200, 201):
+                    resp_data = response.json()
+                    # Check if message was actually accepted (not NOT_SENT)
+                    msg_id = resp_data[0]["id"] if isinstance(resp_data, list) and resp_data else None
+                    if msg_id:
+                        # Brief wait then verify delivery status
+                        await asyncio.sleep(3)
+                        status_resp = await http_client.get(
+                            f"{BULKSMS_BASE_URL}/messages/{msg_id}",
+                            headers=headers,
+                            timeout=10.0
+                        )
+                        if status_resp.status_code == 200:
+                            status_data = status_resp.json()
+                            status_type = status_data.get("status", {}).get("type", "")
+                            if status_type == "FAILED":
+                                logger.warning(f"BulkSMS NOT_SENT on attempt {attempt+1}, retrying after delay...")
+                                await asyncio.sleep(5 * (attempt + 1))
+                                continue
+                    logger.info(f"BulkSMS sent to {international_phone}: msg_id={msg_id}")
+                    return {"success": True, "data": resp_data}
+                else:
+                    error_text = response.text[:300]
+                    logger.error(f"BulkSMS error {response.status_code}: {error_text}")
+                    return {"success": False, "error": f"BulkSMS HTTP {response.status_code}: {error_text}"}
 
-    except Exception as e:
-        logger.error(f"BulkSMS API error: {str(e)}")
-        return {"success": False, "error": str(e)}
+        except Exception as e:
+            logger.error(f"BulkSMS API error attempt {attempt+1}: {str(e)}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(3)
+                continue
+            return {"success": False, "error": str(e)}
+
+    return {"success": False, "error": "SMS failed after retries (BulkSMS rate limit)"}
 
 async def send_bulksms_bulk(phone_numbers: list, message: str) -> dict:
     """Send SMS to multiple recipients via BulkSMS API"""
@@ -1691,7 +1717,9 @@ async def send_bulk_reminders(data: BulkReminderRequest, email: str = Depends(ve
     failed_count = 0
     errors = []
     
-    for customer in customers:
+    for i, customer in enumerate(customers):
+        if i > 0:
+            await asyncio.sleep(2)  # Rate limit: 2s between sends
         result = await send_payment_reminder_sms(
             customer["name"],
             customer["phone"],
