@@ -1401,19 +1401,40 @@ async def delete_distributor(distributor_id: str, email: str = Depends(verify_to
 # ==================== ADMIN PORTAL USERS MANAGEMENT ====================
 
 @api_router.get("/admin/portal-users")
-async def get_all_portal_users(email: str = Depends(verify_token)):
-    """Admin: Get all portal customers with purchases, points, and redemptions"""
+async def get_all_portal_users(
+    date_from: str = None,
+    date_to: str = None,
+    email: str = Depends(verify_token)
+):
+    """Admin: Get all portal customers with purchases, points, and redemptions. Optional date filtering."""
     customers = await db.portal_customers.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
+    
+    # Build date filter for purchases
+    purchase_date_filter = {}
+    if date_from:
+        purchase_date_filter["$gte"] = date_from
+    if date_to:
+        purchase_date_filter["$lte"] = date_to + "T23:59:59"
     
     result = []
     for cust in customers:
         cid = cust["id"]
         
-        # Get purchases
-        purchases = await db.payments.find(
+        # Get ALL purchases (unfiltered for lifetime stats)
+        all_purchases = await db.payments.find(
             {"portal_customer_id": cid, "status": "complete"},
             {"_id": 0}
-        ).sort("created_at", -1).to_list(100)
+        ).sort("created_at", -1).to_list(500)
+        
+        # Get filtered purchases (for date-range stats)
+        if purchase_date_filter:
+            filtered_purchases = [
+                p for p in all_purchases
+                if (not date_from or p.get("created_at", "") >= date_from) and
+                   (not date_to or p.get("created_at", "") <= date_to + "T23:59:59")
+            ]
+        else:
+            filtered_purchases = all_purchases
         
         # Get points history
         points_history = await db.points_history.find(
@@ -1424,10 +1445,13 @@ async def get_all_portal_users(email: str = Depends(verify_token)):
         # Get redemptions from points_history (type=redeemed)
         redemptions = [p for p in points_history if p.get("type") == "redeemed"]
         
-        # Calculate totals
-        total_spent = sum(p.get("amount", 0) for p in purchases)
+        # Calculate totals (lifetime)
+        lifetime_spent = sum(p.get("amount", 0) for p in all_purchases)
         total_points_earned = sum(p["points"] for p in points_history if p.get("points", 0) > 0)
         total_points_redeemed = abs(sum(p["points"] for p in points_history if p.get("points", 0) < 0))
+        
+        # Calculate filtered totals
+        filtered_spent = sum(p.get("amount", 0) for p in filtered_purchases)
         
         result.append({
             "id": cid,
@@ -1438,11 +1462,13 @@ async def get_all_portal_users(email: str = Depends(verify_token)):
             "referral_code": cust.get("referral_code", ""),
             "referred_by": cust.get("referred_by"),
             "created_at": cust.get("created_at", ""),
-            "total_spent": total_spent,
-            "total_purchases": len(purchases),
+            "total_spent": filtered_spent,
+            "total_purchases": len(filtered_purchases),
+            "lifetime_spent": lifetime_spent,
+            "lifetime_purchases": len(all_purchases),
             "total_points_earned": total_points_earned,
             "total_points_redeemed": total_points_redeemed,
-            "purchases": purchases,
+            "purchases": all_purchases,
             "points_history": points_history,
             "redemptions": redemptions,
         })

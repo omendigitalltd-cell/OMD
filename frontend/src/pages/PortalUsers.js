@@ -10,13 +10,29 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "../components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../components/ui/select";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import {
-  Users, Search, ChevronDown, ChevronUp, Star, ShoppingCart, Gift, Phone, MapPin, Calendar,
+  Users, Search, ChevronDown, ChevronUp, Star, ShoppingCart, Gift,
+  Phone, MapPin, Calendar, Filter, TrendingUp,
 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function getMonthRange(year, month) {
+  const from = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const to = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
+}
 
 export default function PortalUsers() {
   const { getAuthHeader } = useAuth();
@@ -27,16 +43,35 @@ export default function PortalUsers() {
   const [sortField, setSortField] = useState("created_at");
   const [sortDir, setSortDir] = useState("desc");
 
+  // Date filter state
+  const [filterMode, setFilterMode] = useState("all"); // "all", "month", "custom"
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
   const fetchUsers = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/api/admin/portal-users`, getAuthHeader());
+      let params = {};
+      if (filterMode === "month") {
+        const range = getMonthRange(selectedYear, selectedMonth);
+        params = { date_from: range.from, date_to: range.to };
+      } else if (filterMode === "custom" && customFrom && customTo) {
+        params = { date_from: customFrom, date_to: customTo };
+      }
+      const res = await axios.get(`${API_URL}/api/admin/portal-users`, {
+        ...getAuthHeader(),
+        params,
+      });
       setUsers(res.data);
     } catch (error) {
       console.error("Failed to fetch portal users:", error);
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, filterMode, selectedMonth, selectedYear, customFrom, customTo]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
@@ -72,10 +107,109 @@ export default function PortalUsers() {
   const totalSpent = users.reduce((s, u) => s + (u.total_spent || 0), 0);
   const totalPoints = users.reduce((s, u) => s + (u.points || 0), 0);
   const totalPurchases = users.reduce((s, u) => s + (u.total_purchases || 0), 0);
+  const lifetimeSpent = users.reduce((s, u) => s + (u.lifetime_spent || 0), 0);
+
+  const filterLabel = filterMode === "all"
+    ? "All Time"
+    : filterMode === "month"
+      ? `${MONTHS[selectedMonth]} ${selectedYear}`
+      : `${customFrom} to ${customTo}`;
+
+  // Generate year options (from 2024 to current+1)
+  const years = [];
+  for (let y = 2024; y <= now.getFullYear() + 1; y++) years.push(y);
 
   return (
     <Layout title="Portal Users">
       <div className="space-y-6" data-testid="portal-users-page">
+        {/* Date Filter Bar */}
+        <Card className="border-slate-200">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-slate-500" />
+                <span className="text-sm font-medium text-slate-600">Revenue Period:</span>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={filterMode === "all" ? "default" : "outline"}
+                  onClick={() => setFilterMode("all")}
+                  data-testid="filter-all"
+                  className={filterMode === "all" ? "bg-violet-600 hover:bg-violet-700" : ""}
+                >
+                  All Time
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filterMode === "month" ? "default" : "outline"}
+                  onClick={() => setFilterMode("month")}
+                  data-testid="filter-month"
+                  className={filterMode === "month" ? "bg-violet-600 hover:bg-violet-700" : ""}
+                >
+                  By Month
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filterMode === "custom" ? "default" : "outline"}
+                  onClick={() => setFilterMode("custom")}
+                  data-testid="filter-custom"
+                  className={filterMode === "custom" ? "bg-violet-600 hover:bg-violet-700" : ""}
+                >
+                  Custom Range
+                </Button>
+              </div>
+
+              {filterMode === "month" && (
+                <div className="flex gap-2 items-center">
+                  <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                    <SelectTrigger className="w-36" data-testid="month-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m, i) => (
+                        <SelectItem key={i} value={String(i)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                    <SelectTrigger className="w-24" data-testid="year-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((y) => (
+                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {filterMode === "custom" && (
+                <div className="flex gap-2 items-center">
+                  <label className="text-xs text-slate-500">From</label>
+                  <Input
+                    type="date"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="w-40"
+                    data-testid="date-from"
+                  />
+                  <label className="text-xs text-slate-500">To</label>
+                  <Input
+                    type="date"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="w-40"
+                    data-testid="date-to"
+                  />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
@@ -92,7 +226,7 @@ export default function PortalUsers() {
               <div className="p-2 bg-emerald-100 rounded-lg"><ShoppingCart className="w-5 h-5 text-emerald-600" /></div>
               <div>
                 <p className="text-2xl font-bold" data-testid="stat-total-purchases">{totalPurchases}</p>
-                <p className="text-xs text-slate-500">Total Purchases</p>
+                <p className="text-xs text-slate-500">Purchases ({filterLabel})</p>
               </div>
             </CardContent>
           </Card>
@@ -107,10 +241,13 @@ export default function PortalUsers() {
           </Card>
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 bg-sky-100 rounded-lg"><Gift className="w-5 h-5 text-sky-600" /></div>
+              <div className="p-2 bg-sky-100 rounded-lg"><TrendingUp className="w-5 h-5 text-sky-600" /></div>
               <div>
                 <p className="text-2xl font-bold" data-testid="stat-total-revenue">R{totalSpent.toFixed(0)}</p>
-                <p className="text-xs text-slate-500">Portal Revenue</p>
+                <p className="text-xs text-slate-500">Revenue ({filterLabel})</p>
+                {filterMode !== "all" && lifetimeSpent > 0 && (
+                  <p className="text-[10px] text-slate-400">Lifetime: R{lifetimeSpent.toFixed(0)}</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -224,11 +361,11 @@ export default function PortalUsers() {
                   <div className="grid grid-cols-4 gap-3">
                     <div className="bg-emerald-50 rounded-lg p-3 text-center">
                       <p className="text-xl font-bold text-emerald-700">{selectedUser.total_purchases}</p>
-                      <p className="text-[10px] text-emerald-600">Purchases</p>
+                      <p className="text-[10px] text-emerald-600">Purchases ({filterLabel})</p>
                     </div>
                     <div className="bg-sky-50 rounded-lg p-3 text-center">
                       <p className="text-xl font-bold text-sky-700">R{(selectedUser.total_spent || 0).toFixed(0)}</p>
-                      <p className="text-[10px] text-sky-600">Spent</p>
+                      <p className="text-[10px] text-sky-600">Spent ({filterLabel})</p>
                     </div>
                     <div className="bg-amber-50 rounded-lg p-3 text-center">
                       <p className="text-xl font-bold text-amber-700">{selectedUser.total_points_earned}</p>
