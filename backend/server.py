@@ -1140,6 +1140,69 @@ async def get_recent_reminders(email: str = Depends(verify_token)):
     logs = await db.reminder_logs.find({}, {"_id": 0}).sort("scheduled_for", -1).to_list(5)
     return logs
 
+@api_router.get("/dashboard/analytics")
+async def get_dashboard_analytics(email: str = Depends(verify_token)):
+    """Revenue per location, monthly growth, average spend per user"""
+    
+    # Revenue per location (accommodation)
+    all_payments = await db.payments.find({"status": "complete"}, {"_id": 0}).to_list(5000)
+    portal_users = await db.portal_customers.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    
+    # Build lookup: portal_customer_id -> accommodation
+    user_acc_map = {u["id"]: u.get("accommodation", "Unknown") or "Unknown" for u in portal_users}
+    
+    # Revenue per location
+    location_revenue = {}
+    for p in all_payments:
+        acc = p.get("accommodation") or user_acc_map.get(p.get("portal_customer_id"), "Unknown") or "Unknown"
+        location_revenue[acc] = location_revenue.get(acc, 0) + (p.get("amount", 0) or 0)
+    
+    revenue_by_location = [
+        {"location": loc, "revenue": rev, "count": sum(1 for p in all_payments if (p.get("accommodation") or user_acc_map.get(p.get("portal_customer_id"), "Unknown") or "Unknown") == loc)}
+        for loc, rev in sorted(location_revenue.items(), key=lambda x: -x[1])
+    ]
+    
+    # Monthly growth (last 6 months of payments)
+    monthly_data = {}
+    for p in all_payments:
+        created = p.get("created_at", "")
+        if created:
+            month_key = created[:7]  # "2026-03"
+            if month_key not in monthly_data:
+                monthly_data[month_key] = {"revenue": 0, "count": 0}
+            monthly_data[month_key]["revenue"] += p.get("amount", 0) or 0
+            monthly_data[month_key]["count"] += 1
+    
+    sorted_months = sorted(monthly_data.keys())[-6:]
+    monthly_growth = []
+    for i, month in enumerate(sorted_months):
+        entry = {"month": month, "revenue": monthly_data[month]["revenue"], "purchases": monthly_data[month]["count"]}
+        if i > 0:
+            prev = monthly_data[sorted_months[i - 1]]["revenue"]
+            entry["growth_pct"] = round(((entry["revenue"] - prev) / prev * 100) if prev else 0, 1)
+        else:
+            entry["growth_pct"] = 0
+        monthly_growth.append(entry)
+    
+    # Average spend per user
+    user_spending = {}
+    for p in all_payments:
+        uid = p.get("portal_customer_id")
+        if uid:
+            user_spending[uid] = user_spending.get(uid, 0) + (p.get("amount", 0) or 0)
+    
+    total_users_with_purchases = len(user_spending)
+    total_revenue = sum(user_spending.values())
+    avg_spend = round(total_revenue / total_users_with_purchases, 2) if total_users_with_purchases else 0
+    
+    return {
+        "revenue_by_location": revenue_by_location,
+        "monthly_growth": monthly_growth,
+        "avg_spend_per_user": avg_spend,
+        "total_paying_users": total_users_with_purchases,
+        "total_revenue": total_revenue,
+    }
+
 # ==================== DISTRIBUTOR AUTH ROUTES ====================
 
 @api_router.post("/distributor/register", response_model=TokenResponse)
