@@ -8,6 +8,7 @@ import Reminders from "./pages/Reminders";
 import Settings from "./pages/Settings";
 import Commissions from "./pages/Commissions";
 import Vouchers from "./pages/Vouchers";
+import PortalUsers from "./pages/PortalUsers";
 import PaymentPage from "./pages/PaymentPage";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentCancel from "./pages/PaymentCancel";
@@ -49,6 +50,7 @@ function AppRoutes() {
       <Route path="/commissions" element={<ProtectedRoute><Commissions /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/vouchers" element={<ProtectedRoute><Vouchers /></ProtectedRoute>} />
+      <Route path="/portal-users" element={<ProtectedRoute><PortalUsers /></ProtectedRoute>} />
       
       {/* Public Payment Routes */}
       <Route path="/pay" element={<PaymentPage />} />

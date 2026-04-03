@@ -12,6 +12,7 @@ import {
   X,
   DollarSign,
   Ticket,
+  UserCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
@@ -19,6 +20,7 @@ import { Button } from "./ui/button";
 const navItems = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
   { path: "/customers", label: "Customers", icon: Users },
+  { path: "/portal-users", label: "Portal Users", icon: UserCheck },
   { path: "/calculator", label: "Pro-rata Calculator", icon: Calculator },
   { path: "/commissions", label: "Commissions", icon: DollarSign },
   { path: "/vouchers", label: "Vouchers", icon: Ticket },

@@ -1398,6 +1398,84 @@ async def delete_distributor(distributor_id: str, email: str = Depends(verify_to
         raise HTTPException(status_code=404, detail="Distributor not found")
     return {"message": "Distributor deleted"}
 
+# ==================== ADMIN PORTAL USERS MANAGEMENT ====================
+
+@api_router.get("/admin/portal-users")
+async def get_all_portal_users(email: str = Depends(verify_token)):
+    """Admin: Get all portal customers with purchases, points, and redemptions"""
+    customers = await db.portal_customers.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
+    
+    result = []
+    for cust in customers:
+        cid = cust["id"]
+        
+        # Get purchases
+        purchases = await db.payments.find(
+            {"portal_customer_id": cid, "status": "complete"},
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(100)
+        
+        # Get points history
+        points_history = await db.points_history.find(
+            {"customer_id": cid},
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(100)
+        
+        # Get redemptions from points_history (type=redeemed)
+        redemptions = [p for p in points_history if p.get("type") == "redeemed"]
+        
+        # Calculate totals
+        total_spent = sum(p.get("amount", 0) for p in purchases)
+        total_points_earned = sum(p["points"] for p in points_history if p.get("points", 0) > 0)
+        total_points_redeemed = abs(sum(p["points"] for p in points_history if p.get("points", 0) < 0))
+        
+        result.append({
+            "id": cid,
+            "name": cust.get("name", ""),
+            "phone": cust.get("phone", ""),
+            "accommodation": cust.get("accommodation", ""),
+            "points": cust.get("points", 0),
+            "referral_code": cust.get("referral_code", ""),
+            "referred_by": cust.get("referred_by"),
+            "created_at": cust.get("created_at", ""),
+            "total_spent": total_spent,
+            "total_purchases": len(purchases),
+            "total_points_earned": total_points_earned,
+            "total_points_redeemed": total_points_redeemed,
+            "purchases": purchases,
+            "points_history": points_history,
+            "redemptions": redemptions,
+        })
+    
+    return result
+
+@api_router.get("/admin/portal-users/{customer_id}")
+async def get_portal_user_detail(customer_id: str, email: str = Depends(verify_token)):
+    """Admin: Get single portal customer detail"""
+    cust = await db.portal_customers.find_one({"id": customer_id}, {"_id": 0, "password_hash": 0})
+    if not cust:
+        raise HTTPException(status_code=404, detail="Portal user not found")
+    
+    purchases = await db.payments.find(
+        {"portal_customer_id": customer_id, "status": "complete"}, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    points_history = await db.points_history.find(
+        {"customer_id": customer_id}, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    redemptions = [p for p in points_history if p.get("type") == "redeemed"]
+    total_spent = sum(p.get("amount", 0) for p in purchases)
+    
+    return {
+        **cust,
+        "total_spent": total_spent,
+        "total_purchases": len(purchases),
+        "purchases": purchases,
+        "points_history": points_history,
+        "redemptions": redemptions,
+    }
+
 # ==================== ADMIN PROOF OF PAYMENT MANAGEMENT ====================
 
 @api_router.get("/admin/proofs")
