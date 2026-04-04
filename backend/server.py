@@ -637,6 +637,10 @@ async def send_bulksms_message(phone_number: str, message: str) -> dict:
                                 continue
                     logger.info(f"BulkSMS sent to {international_phone}: msg_id={msg_id}")
                     return {"success": True, "data": resp_data}
+                elif response.status_code == 403:
+                    error_text = response.text[:300]
+                    logger.error(f"BulkSMS quota/auth error: {error_text}")
+                    return {"success": False, "error": "BulkSMS daily quota exceeded. Please increase your quota at bulksms.com"}
                 else:
                     error_text = response.text[:300]
                     logger.error(f"BulkSMS error {response.status_code}: {error_text}")
@@ -2262,13 +2266,16 @@ async def payfast_itn_callback(request: Request):
             # Try to send voucher via BulkSMS
             if BULKSMS_TOKEN_ID and payment.get("customer_phone"):
                 try:
-                    await send_voucher_code_sms(
+                    sms_result = await send_voucher_code_sms(
                         payment["customer_name"],
                         payment["customer_phone"],
                         voucher_code,
                         plan
                     )
-                    logger.info(f"Voucher sent via BulkSMS to {payment['customer_phone']}")
+                    if sms_result.get("success"):
+                        logger.info(f"Voucher sent via BulkSMS to {payment['customer_phone']}")
+                    else:
+                        logger.error(f"BulkSMS failed: {sms_result.get('error')} - Voucher {voucher_code} assigned but SMS not delivered")
                 except Exception as sms_err:
                     logger.error(f"BulkSMS send failed: {sms_err}")
             
