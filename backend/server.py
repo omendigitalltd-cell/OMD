@@ -404,6 +404,7 @@ ACCOMMODATIONS = [
     "MAHLASELA ROOMS",
     "KB STUDENT ACCOMMODATION",
     "MOKOEPA CLUBVIEW ESTATE",
+    "CPHOMUS STUDENT ACCOMODATION",
 ]
 
 def parse_bank_statement_pdf(pdf_content: bytes) -> List[dict]:

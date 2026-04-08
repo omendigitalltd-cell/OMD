@@ -303,6 +303,7 @@ export default function Vouchers() {
                     <SelectItem value="MAHLASELA ROOMS">Mahlasela Rooms</SelectItem>
                     <SelectItem value="KB STUDENT ACCOMMODATION">KB Student Accommodation</SelectItem>
                     <SelectItem value="MOKOEPA CLUBVIEW ESTATE">Mokoepa Clubview Estate</SelectItem>
+                    <SelectItem value="CPHOMUS STUDENT ACCOMODATION">Cphomus Student Accomodation</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -368,6 +369,7 @@ export default function Vouchers() {
                     <SelectItem value="MAHLASELA ROOMS">Mahlasela Rooms</SelectItem>
                     <SelectItem value="KB STUDENT ACCOMMODATION">KB Student Accommodation</SelectItem>
                     <SelectItem value="MOKOEPA CLUBVIEW ESTATE">Mokoepa Clubview Estate</SelectItem>
+                    <SelectItem value="CPHOMUS STUDENT ACCOMODATION">Cphomus Student Accomodation</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
