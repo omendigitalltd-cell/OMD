@@ -13,7 +13,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import { toast } from "sonner";
-import { Ticket, Plus, Trash2, RefreshCw, Package, CheckCircle, Clock, Upload } from "lucide-react";
+import { Ticket, Plus, Trash2, RefreshCw, Package, CheckCircle, Clock, Upload, MapPin } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -56,6 +56,7 @@ export default function Vouchers() {
   const [csvPlan, setCsvPlan] = useState("1_day");
   const [newAccommodation, setNewAccommodation] = useState("");
   const [csvAccommodation, setCsvAccommodation] = useState("");
+  const [filterAccommodation, setFilterAccommodation] = useState("all");
 
   const fetchData = useCallback(async () => {
     try {
@@ -146,21 +147,73 @@ export default function Vouchers() {
 
   const formatDate = (iso) => iso ? new Date(iso).toLocaleString() : "-";
 
+  // Get unique accommodations from vouchers
+  const accommodations = [...new Set(vouchers.map(v => v.accommodation || "Unassigned").filter(Boolean))].sort();
+
+  // Filter vouchers by accommodation
+  const filteredVouchers = filterAccommodation === "all"
+    ? vouchers
+    : vouchers.filter(v => (v.accommodation || "Unassigned") === filterAccommodation);
+
+  // Group stats by accommodation
+  const accStats = {};
+  vouchers.forEach(v => {
+    const acc = v.accommodation || "Unassigned";
+    if (!accStats[acc]) accStats[acc] = { total: 0, available: 0, assigned: 0 };
+    accStats[acc].total++;
+    if (v.assigned) accStats[acc].assigned++;
+    else accStats[acc].available++;
+  });
+
   return (
     <Layout title="Voucher Management">
       <div className="space-y-6" data-testid="vouchers-page">
-        {/* Stats */}
+        {/* Accommodation Summary Cards */}
+        {Object.keys(accStats).length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-slate-500 mb-3 flex items-center gap-2">
+              <MapPin className="w-4 h-4" /> Vouchers by Accommodation
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {Object.entries(accStats).sort((a, b) => b[1].total - a[1].total).map(([acc, s]) => (
+                <Card
+                  key={acc}
+                  className={`cursor-pointer transition-all border-2 ${filterAccommodation === acc ? 'border-violet-500 bg-violet-50' : 'border-transparent bg-slate-50 hover:border-slate-200'}`}
+                  onClick={() => setFilterAccommodation(filterAccommodation === acc ? "all" : acc)}
+                  data-testid={`acc-card-${acc}`}
+                >
+                  <CardContent className="p-3">
+                    <p className="text-xs font-semibold text-slate-700 truncate mb-1">{acc}</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-bold text-emerald-600">{s.available}</span>
+                      <span className="text-xs text-slate-400">available</span>
+                    </div>
+                    <div className="flex gap-3 mt-1 text-[10px] text-slate-400">
+                      <span>{s.assigned} assigned</span>
+                      <span>{s.total} total</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Plan Stats */}
         {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {Object.entries(stats).map(([plan, s]) => (
-              <Card key={plan} className="bg-slate-50 border-0">
-                <CardContent className="p-3 text-center">
-                  <p className="text-xs text-slate-500 mb-1">{PLAN_LABELS[plan] || plan}</p>
-                  <p className="text-lg font-bold text-slate-800">{s.available} <span className="text-xs font-normal text-slate-400">/ {s.total}</span></p>
-                  <p className="text-[10px] text-slate-400">{s.assigned} assigned</p>
-                </CardContent>
-              </Card>
-            ))}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-500 mb-3">Vouchers by Plan</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {Object.entries(stats).map(([plan, s]) => (
+                <Card key={plan} className="bg-slate-50 border-0">
+                  <CardContent className="p-3 text-center">
+                    <p className="text-xs text-slate-500 mb-1">{PLAN_LABELS[plan] || plan}</p>
+                    <p className="text-lg font-bold text-slate-800">{s.available} <span className="text-xs font-normal text-slate-400">/ {s.total}</span></p>
+                    <p className="text-[10px] text-slate-400">{s.assigned} assigned</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
 
@@ -291,24 +344,33 @@ export default function Vouchers() {
         {/* Voucher Pool */}
         <Card className="border-slate-200">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Ticket className="w-5 h-5 text-violet-600" />
-                Voucher Pool ({vouchers.length})
+                Voucher Pool ({filteredVouchers.length})
+                {filterAccommodation !== "all" && (
+                  <Badge className="bg-violet-100 text-violet-700 ml-2">{filterAccommodation}</Badge>
+                )}
               </CardTitle>
-              <Button variant="ghost" size="icon" onClick={fetchData} data-testid="refresh-vouchers-btn">
-                <RefreshCw className="w-4 h-4" />
-              </Button>
+              <div className="flex gap-2 items-center">
+                {filterAccommodation !== "all" && (
+                  <Button variant="outline" size="sm" onClick={() => setFilterAccommodation("all")} data-testid="clear-filter-btn">
+                    Show All
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" onClick={fetchData} data-testid="refresh-vouchers-btn">
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="py-8 text-center text-slate-400">Loading...</div>
-            ) : vouchers.length === 0 ? (
+            ) : filteredVouchers.length === 0 ? (
               <div className="py-12 text-center">
                 <Package className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                <p className="text-slate-500">No voucher codes yet</p>
-                <p className="text-xs text-slate-400 mt-1">Add codes above to get started</p>
+                <p className="text-slate-500">{filterAccommodation !== "all" ? `No vouchers for ${filterAccommodation}` : "No voucher codes yet"}</p>
               </div>
             ) : (
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
@@ -325,7 +387,7 @@ export default function Vouchers() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vouchers.map((v) => (
+                    {filteredVouchers.map((v) => (
                       <TableRow key={v.id} data-testid={`voucher-row-${v.id}`}>
                         <TableCell className="font-mono font-semibold text-sm">{v.code}</TableCell>
                         <TableCell>
