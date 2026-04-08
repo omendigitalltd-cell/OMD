@@ -2114,6 +2114,23 @@ async def delete_voucher(voucher_id: str, email: str = Depends(verify_token)):
     await db.voucher_pool.delete_one({"id": voucher_id})
     return {"message": "Voucher deleted"}
 
+class BulkDeleteRequest(BaseModel):
+    voucher_ids: list
+
+@api_router.post("/vouchers/bulk-delete")
+async def bulk_delete_vouchers(data: BulkDeleteRequest, email: str = Depends(verify_token)):
+    """Admin: Delete multiple unassigned voucher codes"""
+    deleted = 0
+    skipped = 0
+    for vid in data.voucher_ids:
+        voucher = await db.voucher_pool.find_one({"id": vid})
+        if voucher and not voucher.get("assigned"):
+            await db.voucher_pool.delete_one({"id": vid})
+            deleted += 1
+        else:
+            skipped += 1
+    return {"message": f"Deleted {deleted} vouchers, skipped {skipped} (assigned or not found)", "deleted": deleted, "skipped": skipped}
+
 @api_router.get("/vouchers/stats")
 async def get_voucher_stats(email: str = Depends(verify_token)):
     """Admin: Get voucher pool stats"""

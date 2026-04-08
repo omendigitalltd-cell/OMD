@@ -57,6 +57,8 @@ export default function Vouchers() {
   const [newAccommodation, setNewAccommodation] = useState("");
   const [csvAccommodation, setCsvAccommodation] = useState("");
   const [filterAccommodation, setFilterAccommodation] = useState("all");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -142,6 +144,43 @@ export default function Vouchers() {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to delete");
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const unassigned = filteredVouchers.filter(v => !v.assigned);
+    if (selectedIds.size === unassigned.length && unassigned.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(unassigned.map(v => v.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected vouchers?`)) return;
+    setDeleting(true);
+    try {
+      const res = await axios.post(
+        `${API_URL}/api/vouchers/bulk-delete`,
+        { voucher_ids: [...selectedIds] },
+        getAuthHeader()
+      );
+      toast.success(res.data.message);
+      setSelectedIds(new Set());
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to delete");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -353,6 +392,12 @@ export default function Vouchers() {
                 )}
               </CardTitle>
               <div className="flex gap-2 items-center">
+                {selectedIds.size > 0 && (
+                  <Button size="sm" className="bg-red-500 hover:bg-red-600" onClick={handleBulkDelete} disabled={deleting} data-testid="bulk-delete-btn">
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    {deleting ? "Deleting..." : `Delete ${selectedIds.size} selected`}
+                  </Button>
+                )}
                 {filterAccommodation !== "all" && (
                   <Button variant="outline" size="sm" onClick={() => setFilterAccommodation("all")} data-testid="clear-filter-btn">
                     Show All
@@ -377,6 +422,15 @@ export default function Vouchers() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10">
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300 cursor-pointer"
+                          checked={selectedIds.size > 0 && selectedIds.size === filteredVouchers.filter(v => !v.assigned).length}
+                          onChange={toggleSelectAll}
+                          data-testid="select-all-checkbox"
+                        />
+                      </TableHead>
                       <TableHead>Code</TableHead>
                       <TableHead>Plan</TableHead>
                       <TableHead>Accommodation</TableHead>
@@ -388,7 +442,18 @@ export default function Vouchers() {
                   </TableHeader>
                   <TableBody>
                     {filteredVouchers.map((v) => (
-                      <TableRow key={v.id} data-testid={`voucher-row-${v.id}`}>
+                      <TableRow key={v.id} className={selectedIds.has(v.id) ? "bg-violet-50" : ""} data-testid={`voucher-row-${v.id}`}>
+                        <TableCell>
+                          {!v.assigned ? (
+                            <input
+                              type="checkbox"
+                              className="rounded border-slate-300 cursor-pointer"
+                              checked={selectedIds.has(v.id)}
+                              onChange={() => toggleSelect(v.id)}
+                              data-testid={`select-voucher-${v.id}`}
+                            />
+                          ) : <span className="w-4 h-4 block" />}
+                        </TableCell>
                         <TableCell className="font-mono font-semibold text-sm">{v.code}</TableCell>
                         <TableCell>
                           <Badge className={PLAN_COLORS[v.plan] || "bg-slate-100 text-slate-600"}>
