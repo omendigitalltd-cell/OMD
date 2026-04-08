@@ -1475,8 +1475,13 @@ async def get_all_portal_users(
     date_to: str = None,
     email: str = Depends(verify_token)
 ):
-    """Admin: Get all portal customers with purchases, points, and redemptions. Optional date filtering."""
-    customers = await db.portal_customers.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
+    """Admin: Get all customers (merged portal + legacy) with purchases, points, and redemptions"""
+    # Fetch from both collections
+    portal_custs = await db.portal_customers.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
+    legacy_custs = await db.customers.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    # Track portal phones to avoid duplicates
+    portal_phones = {c.get("phone", "").strip() for c in portal_custs}
     
     # Build date filter for purchases
     purchase_date_filter = {}
@@ -1486,16 +1491,15 @@ async def get_all_portal_users(
         purchase_date_filter["$lte"] = date_to + "T23:59:59"
     
     result = []
-    for cust in customers:
+    
+    # Process portal customers
+    for cust in portal_custs:
         cid = cust["id"]
         
-        # Get ALL purchases (unfiltered for lifetime stats)
         all_purchases = await db.payments.find(
-            {"portal_customer_id": cid, "status": "complete"},
-            {"_id": 0}
+            {"portal_customer_id": cid, "status": "complete"}, {"_id": 0}
         ).sort("created_at", -1).to_list(500)
         
-        # Get filtered purchases (for date-range stats)
         if purchase_date_filter:
             filtered_purchases = [
                 p for p in all_purchases
@@ -1505,22 +1509,17 @@ async def get_all_portal_users(
         else:
             filtered_purchases = all_purchases
         
-        # Get points history
-        points_history = await db.points_history.find(
-            {"customer_id": cid},
-            {"_id": 0}
-        ).sort("created_at", -1).to_list(100)
-        
-        # Get redemptions from points_history (type=redeemed)
+        points_history = await db.points_history.find({"customer_id": cid}, {"_id": 0}).sort("created_at", -1).to_list(100)
         redemptions = [p for p in points_history if p.get("type") == "redeemed"]
         
-        # Calculate totals (lifetime)
         lifetime_spent = sum(p.get("amount", 0) for p in all_purchases)
+        filtered_spent = sum(p.get("amount", 0) for p in filtered_purchases)
         total_points_earned = sum(p["points"] for p in points_history if p.get("points", 0) > 0)
         total_points_redeemed = abs(sum(p["points"] for p in points_history if p.get("points", 0) < 0))
         
-        # Calculate filtered totals
-        filtered_spent = sum(p.get("amount", 0) for p in filtered_purchases)
+        # Get latest voucher from purchases
+        latest_voucher = next((p.get("voucher_code") for p in all_purchases if p.get("voucher_code")), None)
+        latest_plan = next((p.get("plan") for p in all_purchases if p.get("plan")), None)
         
         result.append({
             "id": cid,
@@ -1531,6 +1530,10 @@ async def get_all_portal_users(
             "referral_code": cust.get("referral_code", ""),
             "referred_by": cust.get("referred_by"),
             "created_at": cust.get("created_at", ""),
+            "source": "portal",
+            "is_active": True,
+            "voucher_code": latest_voucher,
+            "plan": latest_plan,
             "total_spent": filtered_spent,
             "total_purchases": len(filtered_purchases),
             "lifetime_spent": lifetime_spent,
@@ -1540,6 +1543,36 @@ async def get_all_portal_users(
             "purchases": all_purchases,
             "points_history": points_history,
             "redemptions": redemptions,
+        })
+    
+    # Process legacy customers (skip duplicates by phone)
+    for cust in legacy_custs:
+        phone = cust.get("phone", "").strip()
+        if phone in portal_phones:
+            continue
+        
+        result.append({
+            "id": cust.get("id", ""),
+            "name": cust.get("name", ""),
+            "phone": phone,
+            "accommodation": "",
+            "points": 0,
+            "referral_code": "",
+            "referred_by": None,
+            "created_at": cust.get("created_at", cust.get("start_date", "")),
+            "source": "legacy",
+            "is_active": cust.get("is_active", True),
+            "voucher_code": cust.get("voucher_code", ""),
+            "plan": cust.get("plan", ""),
+            "total_spent": 0,
+            "total_purchases": 0,
+            "lifetime_spent": 0,
+            "lifetime_purchases": 0,
+            "total_points_earned": 0,
+            "total_points_redeemed": 0,
+            "purchases": [],
+            "points_history": [],
+            "redemptions": [],
         })
     
     return result
