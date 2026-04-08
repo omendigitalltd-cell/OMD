@@ -12,6 +12,7 @@ import {
   X,
   DollarSign,
   Ticket,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
@@ -23,6 +24,7 @@ const navItems = [
   { path: "/commissions", label: "Commissions", icon: DollarSign },
   { path: "/vouchers", label: "Vouchers", icon: Ticket },
   { path: "/reminders", label: "Reminders", icon: MessageSquare },
+  { path: "/logs", label: "Activity Logs", icon: FileText },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 

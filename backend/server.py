@@ -407,6 +407,25 @@ ACCOMMODATIONS = [
     "CPHOMUS STUDENT ACCOMODATION",
 ]
 
+async def log_activity(action: str, status: str, detail: str, user_phone: str = "", user_name: str = "", extra: dict = None):
+    """Log user-facing activity/errors for admin visibility"""
+    doc = {
+        "id": str(uuid.uuid4()),
+        "action": action,
+        "status": status,
+        "detail": detail,
+        "user_phone": user_phone,
+        "user_name": user_name,
+        "extra": extra or {},
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    try:
+        await db.activity_logs.insert_one(doc)
+    except Exception:
+        pass
+
+
+
 def parse_bank_statement_pdf(pdf_content: bytes) -> List[dict]:
     """Parse bank statement PDF and extract transactions"""
     entries = []
@@ -1137,10 +1156,34 @@ async def get_dashboard_stats(email: str = Depends(verify_token)):
 
 @api_router.get("/dashboard/recent-customers")
 async def get_recent_customers(email: str = Depends(verify_token)):
-    customers = await db.customers.find({}, {"_id": 0}).sort("created_at", -1).to_list(5)
-    for c in customers:
-        c["monthly_rate"] = get_monthly_rate(c.get("plan", "3_devices"))
-    return customers
+    """Recent customers who purchased vouchers (from payments)"""
+    recent_payments = await db.payments.find(
+        {"status": "complete"},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(10)
+    
+    results = []
+    seen = set()
+    for p in recent_payments:
+        name = p.get("customer_name", "Unknown")
+        phone = p.get("customer_phone", "")
+        key = phone or name
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append({
+            "id": p.get("id", ""),
+            "name": name,
+            "phone": phone,
+            "plan": p.get("plan", ""),
+            "amount": p.get("amount", 0),
+            "voucher_code": p.get("voucher_code", ""),
+            "accommodation": p.get("accommodation", ""),
+            "created_at": p.get("created_at", ""),
+        })
+        if len(results) >= 5:
+            break
+    return results
 
 @api_router.get("/dashboard/recent-reminders")
 async def get_recent_reminders(email: str = Depends(verify_token)):
@@ -1209,6 +1252,19 @@ async def get_dashboard_analytics(email: str = Depends(verify_token)):
         "total_paying_users": total_users_with_purchases,
         "total_revenue": total_revenue,
     }
+
+
+@api_router.get("/admin/activity-logs")
+async def get_activity_logs(action: str = None, status: str = None, limit: int = 100, email: str = Depends(verify_token)):
+    """Admin: Get activity logs (errors and events)"""
+    query = {}
+    if action:
+        query["action"] = action
+    if status:
+        query["status"] = status
+    logs = await db.activity_logs.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return logs
+
 
 # ==================== DISTRIBUTOR AUTH ROUTES ====================
 
@@ -2416,72 +2472,80 @@ async def get_accommodations():
 @api_router.post("/portal/register")
 async def portal_register(data: PortalCustomerRegister):
     """Public: Register a new portal customer"""
-    existing = await db.portal_customers.find_one({"phone": data.phone})
-    if existing:
-        raise HTTPException(status_code=400, detail="Phone number already registered")
-    
-    if data.accommodation not in ACCOMMODATIONS:
-        raise HTTPException(status_code=400, detail="Invalid accommodation")
-    
-    customer_id = str(uuid.uuid4())
-    referral_code = f"REF-{uuid.uuid4().hex[:6].upper()}"
-    
-    doc = {
-        "id": customer_id,
-        "name": data.name.strip(),
-        "phone": data.phone.strip(),
-        "password_hash": bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode(),
-        "points": 0,
-        "accommodation": data.accommodation,
-        "referral_code": referral_code,
-        "referred_by": None,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    # Handle referral
-    if data.referral_code and data.referral_code.strip():
-        referrer = await db.portal_customers.find_one({"referral_code": data.referral_code.strip().upper()})
-        if referrer:
-            doc["referred_by"] = referrer["id"]
-            # Award bonus points to referrer
-            await db.portal_customers.update_one(
-                {"id": referrer["id"]},
-                {"$inc": {"points": REFERRAL_BONUS_POINTS}}
-            )
+    try:
+        existing = await db.portal_customers.find_one({"phone": data.phone})
+        if existing:
+            await log_activity("register", "error", "Phone number already registered", user_phone=data.phone, user_name=data.name)
+            raise HTTPException(status_code=400, detail="Phone number already registered")
+        
+        if data.accommodation not in ACCOMMODATIONS:
+            await log_activity("register", "error", f"Invalid accommodation: {data.accommodation}", user_phone=data.phone, user_name=data.name)
+            raise HTTPException(status_code=400, detail="Invalid accommodation")
+        
+        customer_id = str(uuid.uuid4())
+        referral_code = f"REF-{uuid.uuid4().hex[:6].upper()}"
+        
+        doc = {
+            "id": customer_id,
+            "name": data.name.strip(),
+            "phone": data.phone.strip(),
+            "password_hash": bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode(),
+            "points": 0,
+            "accommodation": data.accommodation,
+            "referral_code": referral_code,
+            "referred_by": None,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Handle referral
+        if data.referral_code and data.referral_code.strip():
+            referrer = await db.portal_customers.find_one({"referral_code": data.referral_code.strip().upper()})
+            if referrer:
+                doc["referred_by"] = referrer["id"]
+                await db.portal_customers.update_one(
+                    {"id": referrer["id"]},
+                    {"$inc": {"points": REFERRAL_BONUS_POINTS}}
+                )
+                await db.points_history.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "customer_id": referrer["id"],
+                    "points": REFERRAL_BONUS_POINTS,
+                    "type": "referral_bonus",
+                    "description": f"Referral bonus: {data.name.strip()} joined",
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+                doc["points"] = REFERRAL_BONUS_POINTS
+        
+        await db.portal_customers.insert_one(doc)
+        
+        if doc["points"] > 0:
             await db.points_history.insert_one({
                 "id": str(uuid.uuid4()),
-                "customer_id": referrer["id"],
+                "customer_id": customer_id,
                 "points": REFERRAL_BONUS_POINTS,
                 "type": "referral_bonus",
-                "description": f"Referral bonus: {data.name.strip()} joined",
+                "description": "Welcome bonus: joined via referral",
                 "created_at": datetime.now(timezone.utc).isoformat()
             })
-            # Award bonus to new customer too
-            doc["points"] = REFERRAL_BONUS_POINTS
-    
-    await db.portal_customers.insert_one(doc)
-    
-    # Log referral bonus for new customer if applicable
-    if doc["points"] > 0:
-        await db.points_history.insert_one({
-            "id": str(uuid.uuid4()),
-            "customer_id": customer_id,
-            "points": REFERRAL_BONUS_POINTS,
-            "type": "referral_bonus",
-            "description": "Welcome bonus: joined via referral",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
-    
-    token = create_portal_token(data.phone.strip(), customer_id)
-    return {"access_token": token, "token_type": "bearer", "customer_id": customer_id}
+        
+        await log_activity("register", "success", f"Registered successfully", user_phone=data.phone.strip(), user_name=data.name.strip(), extra={"accommodation": data.accommodation})
+        token = create_portal_token(data.phone.strip(), customer_id)
+        return {"access_token": token, "token_type": "bearer", "customer_id": customer_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_activity("register", "error", str(e), user_phone=data.phone, user_name=data.name)
+        raise HTTPException(status_code=500, detail="Registration failed")
 
 @api_router.post("/portal/login")
 async def portal_login(data: PortalCustomerLogin):
     """Public: Login as portal customer"""
     customer = await db.portal_customers.find_one({"phone": data.phone.strip()})
     if not customer:
+        await log_activity("login", "error", "Invalid phone - account not found", user_phone=data.phone.strip())
         raise HTTPException(status_code=401, detail="Invalid phone or password")
     if not bcrypt.checkpw(data.password.encode(), customer["password_hash"].encode()):
+        await log_activity("login", "error", "Wrong password", user_phone=data.phone.strip(), user_name=customer.get("name", ""))
         raise HTTPException(status_code=401, detail="Invalid phone or password")
     
     token = create_portal_token(customer["phone"], customer["id"])
@@ -2555,14 +2619,17 @@ async def portal_redeem(data: dict, user: dict = Depends(verify_portal_token)):
     """Portal: Redeem points for a free voucher"""
     plan = data.get("plan")
     if plan not in REWARD_TIERS:
+        await log_activity("redeem", "error", f"Invalid reward plan: {plan}", user_phone=user.get("phone", ""))
         raise HTTPException(status_code=400, detail="Invalid reward plan")
     
     pts_needed = REWARD_TIERS[plan]
     customer = await db.portal_customers.find_one({"id": user["customer_id"]})
     if not customer:
+        await log_activity("redeem", "error", "Customer not found", user_phone=user.get("phone", ""))
         raise HTTPException(status_code=404, detail="Customer not found")
     
     if customer.get("points", 0) < pts_needed:
+        await log_activity("redeem", "error", f"Not enough points. Need {pts_needed}, have {customer.get('points', 0)}", user_phone=customer.get("phone", ""), user_name=customer.get("name", ""))
         raise HTTPException(status_code=400, detail=f"Not enough points. Need {pts_needed}, have {customer.get('points', 0)}")
     
     # Find available voucher (filtered by customer's accommodation)
@@ -2580,6 +2647,7 @@ async def portal_redeem(data: dict, user: dict = Depends(verify_portal_token)):
     )
     
     if not voucher:
+        await log_activity("redeem", "error", f"No voucher available for plan {plan} at {customer.get('accommodation', 'N/A')}", user_phone=customer.get("phone", ""), user_name=customer.get("name", ""))
         raise HTTPException(status_code=400, detail="No voucher codes available for this plan. Contact support.")
     
     # Deduct points
@@ -2624,10 +2692,12 @@ async def portal_payment_initiate(data: dict, user: dict = Depends(verify_portal
     """Portal: Initiate PayFast payment (authenticated)"""
     plan = data.get("plan")
     if plan not in PLAN_RATES:
+        await log_activity("buy_voucher", "error", f"Invalid plan: {plan}", user_phone=user.get("phone", ""))
         raise HTTPException(status_code=400, detail="Invalid plan")
     
     customer = await db.portal_customers.find_one({"id": user["customer_id"]}, {"_id": 0, "password_hash": 0})
     if not customer:
+        await log_activity("buy_voucher", "error", "Customer not found", user_phone=user.get("phone", ""))
         raise HTTPException(status_code=404, detail="Customer not found")
     
     amount = PLAN_RATES[plan]
@@ -2635,6 +2705,7 @@ async def portal_payment_initiate(data: dict, user: dict = Depends(verify_portal
     # Check voucher availability
     available = await db.voucher_pool.find_one({"plan": plan, "assigned": False})
     if not available:
+        await log_activity("buy_voucher", "error", f"No voucher available for plan {plan}", user_phone=customer.get("phone", ""), user_name=customer.get("name", ""))
         raise HTTPException(status_code=400, detail="No voucher codes available for this plan.")
     
     order_id = f"WF-{uuid.uuid4().hex[:10].upper()}"

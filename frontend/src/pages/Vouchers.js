@@ -190,9 +190,10 @@ export default function Vouchers() {
   const accommodations = [...new Set(vouchers.map(v => v.accommodation || "Unassigned").filter(Boolean))].sort();
 
   // Filter vouchers by accommodation
-  const filteredVouchers = filterAccommodation === "all"
+  const filteredVouchers = (filterAccommodation === "all"
     ? vouchers
-    : vouchers.filter(v => (v.accommodation || "Unassigned") === filterAccommodation);
+    : vouchers.filter(v => (v.accommodation || "Unassigned") === filterAccommodation)
+  ).sort((a, b) => (a.accommodation || "ZZZ").localeCompare(b.accommodation || "ZZZ"));
 
   // Group stats by accommodation
   const accStats = {};

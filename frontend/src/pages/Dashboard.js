@@ -257,24 +257,27 @@ export default function Dashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="text-lg font-bold font-heading flex items-center gap-2">
                 <Users className="w-5 h-5 text-violet-600" />
-                Recent Customers
+                Recent Purchases
               </CardTitle>
             </CardHeader>
             <CardContent>
               {recentCustomers.length === 0 ? (
-                <p className="text-slate-500 text-sm py-4 text-center">No customers yet</p>
+                <p className="text-slate-500 text-sm py-4 text-center">No purchases yet</p>
               ) : (
                 <div className="space-y-3">
                   {recentCustomers.map((customer, index) => (
                     <div key={customer.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }} data-testid={`customer-row-${customer.id}`}>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-violet-600 rounded-full flex items-center justify-center text-white font-bold">{customer.name.charAt(0).toUpperCase()}</div>
+                        <div className="w-10 h-10 bg-violet-600 rounded-full flex items-center justify-center text-white font-bold">{customer.name?.charAt(0).toUpperCase() || "?"}</div>
                         <div>
                           <p className="font-medium text-slate-900">{customer.name}</p>
-                          <p className="text-xs text-slate-500 font-mono">{customer.voucher_code}</p>
+                          <p className="text-xs text-slate-500 font-mono">{customer.phone}</p>
                         </div>
                       </div>
-                      <Badge className={customer.plan === "3_devices" ? "bg-violet-100 text-violet-700" : "bg-orange-100 text-orange-700"}>R{customer.monthly_rate}</Badge>
+                      <div className="text-right">
+                        <Badge className="bg-emerald-100 text-emerald-700">R{customer.amount}</Badge>
+                        {customer.accommodation && <p className="text-[10px] text-slate-400 mt-1">{customer.accommodation}</p>}
+                      </div>
                     </div>
                   ))}
                 </div>
