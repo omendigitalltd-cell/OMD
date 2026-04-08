@@ -52,6 +52,10 @@ export default function Customers() {
   const [sortDir, setSortDir] = useState("desc");
   const [resetPassword, setResetPassword] = useState("");
   const [resetting, setResetting] = useState(false);
+  const [editingAccommodation, setEditingAccommodation] = useState(false);
+  const [newAccommodation, setNewAccommodation] = useState("");
+  const [savingAccommodation, setSavingAccommodation] = useState(false);
+  const [accommodations, setAccommodations] = useState([]);
 
   // Date filter
   const now = new Date();
@@ -89,6 +93,23 @@ export default function Customers() {
   }, [getAuthHeader, filterMode, selectedMonth, selectedYear, customFrom, customTo]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  useEffect(() => {
+    axios.get(`${API_URL}/api/portal/accommodations`).then(r => setAccommodations(r.data.accommodations || [])).catch(() => {});
+  }, []);
+
+  const handleUpdateAccommodation = async () => {
+    if (!newAccommodation || !selectedUser) return;
+    setSavingAccommodation(true);
+    try {
+      await axios.put(`${API_URL}/api/admin/portal-users/${selectedUser.id}/accommodation`, { accommodation: newAccommodation }, getAuthHeader());
+      toast.success(`Accommodation updated to ${newAccommodation}`);
+      setSelectedUser({ ...selectedUser, accommodation: newAccommodation });
+      setEditingAccommodation(false);
+      fetchUsers();
+    } catch (err) { toast.error(err.response?.data?.detail || "Failed to update accommodation"); }
+    finally { setSavingAccommodation(false); }
+  };
 
   const handleResetPassword = async (userId, userName) => {
     if (!resetPassword || resetPassword.length < 4) { toast.error("Password must be at least 4 characters"); return; }
@@ -327,7 +348,7 @@ export default function Customers() {
         </Card>
 
         {/* User Detail Dialog */}
-        <Dialog open={!!selectedUser} onOpenChange={() => { setSelectedUser(null); setResetPassword(""); }}>
+        <Dialog open={!!selectedUser} onOpenChange={() => { setSelectedUser(null); setResetPassword(""); setEditingAccommodation(false); }}>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             {selectedUser && (
               <>
@@ -341,7 +362,36 @@ export default function Customers() {
                 <div className="space-y-5">
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-slate-400" /> {selectedUser.phone}</div>
-                    <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-slate-400" /> {selectedUser.accommodation || "N/A"}</div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-slate-400" />
+                      {editingAccommodation ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <Select value={newAccommodation} onValueChange={setNewAccommodation}>
+                            <SelectTrigger className="h-8 text-xs flex-1" data-testid="edit-accommodation-select">
+                              <SelectValue placeholder="Select accommodation" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {accommodations.map(acc => (
+                                <SelectItem key={acc} value={acc}>{acc}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button size="sm" onClick={handleUpdateAccommodation} disabled={savingAccommodation || !newAccommodation} className="h-8 bg-emerald-600 hover:bg-emerald-700 text-xs" data-testid="save-accommodation-btn">
+                            {savingAccommodation ? "..." : "Save"}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditingAccommodation(false)} className="h-8 text-xs">Cancel</Button>
+                        </div>
+                      ) : (
+                        <>
+                          <span>{selectedUser.accommodation || "N/A"}</span>
+                          {selectedUser.source === "portal" && (
+                            <Button size="sm" variant="ghost" onClick={() => { setEditingAccommodation(true); setNewAccommodation(selectedUser.accommodation || ""); }} className="h-6 px-2 text-xs text-violet-600 hover:text-violet-700" data-testid="edit-accommodation-btn">
+                              <Pencil className="w-3 h-3 mr-1" /> Edit
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-slate-400" /> Joined {formatDate(selectedUser.created_at)}</div>
                     <div className="flex items-center gap-2"><Star className="w-4 h-4 text-amber-500" /> {selectedUser.points} points</div>
                   </div>

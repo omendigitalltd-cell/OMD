@@ -1620,6 +1620,22 @@ async def admin_reset_portal_password(customer_id: str, data: PortalPasswordRese
     
     return {"message": f"Password reset for {cust['name']}", "success": True}
 
+class AccommodationUpdate(BaseModel):
+    accommodation: str
+
+@api_router.put("/admin/portal-users/{customer_id}/accommodation")
+async def admin_update_accommodation(customer_id: str, data: AccommodationUpdate, email: str = Depends(verify_token)):
+    """Admin: Update a portal customer's accommodation"""
+    if data.accommodation not in ACCOMMODATIONS:
+        raise HTTPException(status_code=400, detail="Invalid accommodation")
+    cust = await db.portal_customers.find_one({"id": customer_id})
+    if not cust:
+        raise HTTPException(status_code=404, detail="Portal user not found")
+    await db.portal_customers.update_one({"id": customer_id}, {"$set": {"accommodation": data.accommodation}})
+    return {"message": f"Accommodation updated to {data.accommodation}", "success": True}
+
+
+
 # ==================== ADMIN PROOF OF PAYMENT MANAGEMENT ====================
 
 @api_router.get("/admin/proofs")
