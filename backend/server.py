@@ -69,7 +69,7 @@ JWT_EXPIRATION_HOURS = 24
 # Create the main app
 app = FastAPI(title="WiFi Hotspot Admin API")
 api_router = APIRouter(prefix="/api")
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -320,6 +320,8 @@ def create_token(email: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Session expired. Please login again.")
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         email = payload.get("sub")
@@ -327,9 +329,9 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
             raise HTTPException(status_code=401, detail="Invalid token")
         return email
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        raise HTTPException(status_code=401, detail="Session expired. Please login again.")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token. Please login again.")
 
 def create_distributor_token(email: str, distributor_id: str) -> str:
     expiration = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
@@ -358,7 +360,7 @@ async def verify_distributor_token(credentials: HTTPAuthorizationCredentials = D
 
 # Portal customer auth helpers
 def create_portal_token(phone: str, customer_id: str) -> str:
-    expiration = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+    expiration = datetime.now(timezone.utc) + timedelta(days=7)
     payload = {
         "sub": phone,
         "customer_id": customer_id,
@@ -369,6 +371,8 @@ def create_portal_token(phone: str, customer_id: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 async def verify_portal_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Session expired. Please login again.")
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         if payload.get("role") != "portal_customer":
@@ -378,9 +382,9 @@ async def verify_portal_token(credentials: HTTPAuthorizationCredentials = Depend
             "customer_id": payload.get("customer_id")
         }
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        raise HTTPException(status_code=401, detail="Session expired. Please login again.")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token. Please login again.")
 
 # Reward tiers: points needed to redeem a free voucher
 REWARD_TIERS = {

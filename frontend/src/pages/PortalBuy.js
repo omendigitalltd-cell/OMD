@@ -33,6 +33,10 @@ export default function PortalBuy() {
 
     try {
       const token = localStorage.getItem("portal_token");
+      if (!token) {
+        window.location.href = "/portal/login";
+        return;
+      }
       const { data } = await axios.post(
         `${API_URL}/api/portal/payment/initiate`,
         { plan: selectedPlan },
@@ -52,6 +56,12 @@ export default function PortalBuy() {
       document.body.appendChild(form);
       form.submit();
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        localStorage.removeItem("portal_token");
+        localStorage.removeItem("portal_customer_id");
+        window.location.href = "/portal/login";
+        return;
+      }
       setError(err.response?.data?.detail || err.message || "Payment initiation failed");
       setProcessing(false);
     }
