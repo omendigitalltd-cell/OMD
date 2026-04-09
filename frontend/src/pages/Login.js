@@ -50,12 +50,12 @@ export default function Login() {
     >
       <Card className="w-full max-w-md shadow-xl border-slate-200 animate-fade-in">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-violet-600 rounded-2xl flex items-center justify-center shadow-lg">
-            <Wifi className="w-8 h-8 text-white" />
+          <div className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center">
+            <img src="/logo.png" alt="Omen Digital" className="w-20 h-20 object-contain" />
           </div>
           <div>
             <CardTitle className="text-3xl font-extrabold text-slate-900 font-heading">
-              Hotspot Admin
+              Omen Digital
             </CardTitle>
             <CardDescription className="text-slate-500 mt-2">
               {isLogin ? "Sign in to manage your WiFi business" : "Create your admin account"}

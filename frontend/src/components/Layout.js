@@ -53,12 +53,10 @@ export const Layout = ({ children, title }) => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-800">
-            <div className="p-2 bg-violet-600 rounded-lg">
-              <Wifi className="w-5 h-5" />
-            </div>
+            <img src="/logo.png" alt="Omen Digital" className="w-10 h-10 rounded-lg object-contain" />
             <div>
-              <h1 className="font-bold text-lg font-heading">Hotspot Admin</h1>
-              <p className="text-xs text-slate-400">Management System</p>
+              <h1 className="font-bold text-lg font-heading">Omen Digital</h1>
+              <p className="text-xs text-slate-400">Hotspot Admin</p>
             </div>
             <button
               className="ml-auto lg:hidden"

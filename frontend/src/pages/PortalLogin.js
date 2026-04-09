@@ -49,8 +49,8 @@ export default function PortalLogin() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 flex items-center justify-center px-4">
       <Card className="w-full max-w-sm border-slate-700 bg-slate-800/80 backdrop-blur" data-testid="portal-login-card">
         <CardHeader className="text-center pb-2">
-          <div className="w-14 h-14 bg-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-3">
-            <Wifi className="w-7 h-7 text-white" />
+          <div className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <img src="/logo.png" alt="Omen Digital" className="w-16 h-16 object-contain" />
           </div>
           <CardTitle className="text-xl text-white">{isRegister ? "Create Account" : "Customer Portal"}</CardTitle>
           <p className="text-sm text-slate-400">{isRegister ? "Sign up to get started" : "Login with your phone"}</p>

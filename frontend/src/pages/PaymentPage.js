@@ -165,12 +165,10 @@ export default function PaymentPage() {
       {/* Header */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-violet-500 rounded-xl flex items-center justify-center">
-            <Wifi className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo.png" alt="Omen Digital" className="w-10 h-10 object-contain" />
           <div>
-            <h1 className="text-lg font-bold text-slate-900">WiFi Hotspot</h1>
-            <p className="text-xs text-slate-500">Get connected instantly</p>
+            <h1 className="text-lg font-bold text-slate-900">Omen Digital</h1>
+            <p className="text-xs text-slate-500">WiFi Hotspot - Get connected</p>
           </div>
         </div>
       </div>

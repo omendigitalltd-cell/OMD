@@ -26,12 +26,10 @@ export const PortalLayout = ({ children, title }) => {
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-56 bg-slate-900 text-white transform transition-transform duration-200 lg:translate-x-0 lg:static lg:flex-shrink-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="p-4 border-b border-slate-700 flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
-            <Wifi className="w-4 h-4 text-white" />
-          </div>
+          <img src="/logo.png" alt="Omen Digital" className="w-8 h-8 rounded-lg object-contain" />
           <div>
-            <h1 className="text-sm font-bold">WiFi Portal</h1>
-            <p className="text-[10px] text-slate-400">My Account</p>
+            <h1 className="text-sm font-bold">Omen Digital</h1>
+            <p className="text-[10px] text-slate-400">Customer Portal</p>
           </div>
         </div>
         <nav className="p-2 space-y-0.5">
