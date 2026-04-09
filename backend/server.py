@@ -2236,18 +2236,18 @@ async def initiate_payment(data: PaymentInitiateRequest):
     
     amount = PLAN_RATES[data.plan]
     plan_labels = {
-        "1_day": "1 Day Pass (R10)",
-        "1dev_1week": "1 Device 1 Week (R60)",
-        "1dev_2weeks": "1 Device 2 Weeks (R90)",
-        "1dev_3weeks": "1 Device 3 Weeks (R120)",
-        "1dev_4weeks": "1 Device 4 Weeks (R150)",
-        "2dev_1week": "2 Devices 1 Week (R90)",
-        "2dev_2weeks": "2 Devices 2 Weeks (R135)",
-        "2dev_3weeks": "2 Devices 3 Weeks (R180)",
-        "2dev_4weeks": "2 Devices 4 Weeks (R210)",
-        "3_devices": "3 Devices Monthly (R200)",
-        "4_devices": "4 Devices Monthly (R300)",
-        "test": "Test Plan (R10)",
+        "1_day": "1 Day Pass",
+        "1dev_1week": "1 Device 1 Week",
+        "1dev_2weeks": "1 Device 2 Weeks",
+        "1dev_3weeks": "1 Device 3 Weeks",
+        "1dev_4weeks": "1 Device 4 Weeks",
+        "2dev_1week": "2 Devices 1 Week",
+        "2dev_2weeks": "2 Devices 2 Weeks",
+        "2dev_3weeks": "2 Devices 3 Weeks",
+        "2dev_4weeks": "2 Devices 4 Weeks",
+        "3_devices": "3 Devices Monthly",
+        "4_devices": "4 Devices Monthly",
+        "test": "Test Plan",
     }
     plan_label = plan_labels.get(data.plan, data.plan)
     
@@ -2727,11 +2727,11 @@ async def portal_payment_initiate(data: dict, user: dict = Depends(verify_portal
     base_url = APP_BASE_URL
     
     plan_labels = {
-        "1_day": "1 Day Pass (R10)", "1dev_1week": "1 Device 1 Week (R60)",
-        "1dev_2weeks": "1 Device 2 Weeks (R90)", "1dev_3weeks": "1 Device 3 Weeks (R120)",
-        "1dev_4weeks": "1 Device 4 Weeks (R150)", "2dev_1week": "2 Devices 1 Week (R90)",
-        "2dev_2weeks": "2 Devices 2 Weeks (R135)", "2dev_3weeks": "2 Devices 3 Weeks (R180)",
-        "2dev_4weeks": "2 Devices 4 Weeks (R210)", "test": "Test Plan (R10)",
+        "1_day": "1 Day Pass", "1dev_1week": "1 Device 1 Week",
+        "1dev_2weeks": "1 Device 2 Weeks", "1dev_3weeks": "1 Device 3 Weeks",
+        "1dev_4weeks": "1 Device 4 Weeks", "2dev_1week": "2 Devices 1 Week",
+        "2dev_2weeks": "2 Devices 2 Weeks", "2dev_3weeks": "2 Devices 3 Weeks",
+        "2dev_4weeks": "2 Devices 4 Weeks", "test": "Test Plan",
     }
     plan_label = plan_labels.get(plan, plan)
     
